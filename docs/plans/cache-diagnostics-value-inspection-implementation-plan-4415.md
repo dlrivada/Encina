@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4415 lets the cache diagnostics of #276 (open, plan merged) return the deserialized cached value of one entry, only with `Diagnostics.ShowValues` on and behind a second authorization policy. This is a security and personal-data feature: cached values can hold personal data (the reference application caches health-related query results), so every rule below fails closed and no value is ever written to a log, a tag or the outbox. Re-checked against `origin/main` (d099efe3e):
+Issue #4415 lets the cache diagnostics of #276 (open, plan merged) return the deserialized cached value of one entry, only with `Diagnostics.ShowValues` on and behind a second authorization policy. This is a security and personal-data feature: cached values can hold personal data (the reference application caches health-related query results), so every rule below fails closed and no value is ever written to a log, a tag or the outbox. Re-checked against `origin/main` (326e65ebf):
 
 | Premise of the issue | State in the code and the plans |
 |----------------------|---------------------------------|
@@ -23,7 +23,7 @@ Issue #4415 lets the cache diagnostics of #276 (open, plan merged) return the de
 
 The plan adds the registry value reader, an `ICacheValueInspector` with an internal implementation (write-ahead read audit, tenant check, size limit), the `ShowValues` option and the second policy on the mapping. Caching (8): the re-read goes through `ICacheProvider`, so it behaves identically on Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB and the planned Memcached of #277.
 
-**Shared pieces and ownership (family cache-patterns-2):** #276 owns the registry, `ICacheDiagnostics`, the options and the endpoints; this plan modifies them after #276 PR 3. #4414 owns `ICacheAuditRecorder`, `CacheAuditEvent` and the `CachingTenantAudit` range 528-533; this plan consumes the recorder (its `ValueRead` kind) and so starts after #4414 PR 1. #4416 (earlier in the order) owns the single endpoint helper that rejects an unauthenticated identity (`cache.diagnostics_identity_required`); if this plan lands first it creates that one helper and #4416 reuses it. This plan owns `CachingValueInspection` 534-537.
+**Shared pieces and ownership (family cache-patterns-2):** #276 owns the registry, `ICacheDiagnostics`, the options and the endpoints; this plan modifies them after #276 PR 3. #4414 owns `ICacheAuditRecorder`, `CacheAuditEvent` (with the `EntityId` this plan fills with the opaque id), `CacheAuditSchema` and the `CachingTenantAudit` range 528-533; this plan consumes the recorder and its `ValueRead` kind (unmapped in #4414 PR 1, where it returns the `Left`; this plan's PR 2 adds the `IReadAuditStore` mapping) and so starts after #4414 PR 1. #4416 owns the single endpoint identity helper `src/Encina.AspNetCore/CacheDiagnosticsIdentity.cs` (`cache.diagnostics_identity_required`); this plan's PR 3 reuses it and so starts after #4416 PR 1 (the order #4414, #4416, #4415 is fixed). This plan owns `CachingValueInspection` 534-537.
 
 **Affected packages:** `Encina.Caching` (reader, inspector, option), `Encina.AspNetCore` (route and policy), `Encina` (EventId registry). **Provider category:** Caching (8), behavior-level.
 
@@ -71,22 +71,22 @@ The plan adds the registry value reader, an `ICacheValueInspector` with an inter
 </details>
 
 <details>
-<summary><strong>3. The read is audited before the value is returned, and a failed audit denies it</strong></summary>
+<summary><strong>3. The read is audited before the value is returned (Dilemma D3)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Write-ahead: the audit event is written first; when the write fails the value is not returned and the endpoint answers `cache.diagnostics_value_audit_failed` (ADR-062 `ErrorCategory.Unavailable`, constant message "The cache value read could not be audited.")** | No disclosure of personal data without evidence | An audit outage blocks value inspection |
-| **B) Return the value, then audit best effort** | Inspection survives an audit outage | Personal data read with no evidence |
+| **A) Write-ahead, fail closed: the audit event is written first; when the write fails the value is not returned and the endpoint answers `cache.diagnostics_value_audit_failed` (ADR-062 `ErrorCategory.Internal`, rule R4: a store failure is `Internal`; constant message "The cache value read could not be audited.")** | No disclosure of personal data without evidence; the pattern of the ABAC decision audit (#751) | An audit outage blocks value inspection |
+| **B) Return the value, then audit best effort (the shape #4416 recommends for deletes)** | Inspection survives an audit outage | Personal data read with no evidence |
 
-### Chosen Option: **A - write-ahead, fail closed**
+### Chosen Option: **A - write-ahead, fail closed** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed ... when a lookup fails, the gate denies") and the precedent of the ABAC decision audit, which is write-ahead and fail closed (`docs/plans/abac-decision-audit-implementation-plan-751.md`). Option B would disclose without evidence, so only A complies; this holds under every option of Design Choices 1 and 2.
+- A value read discloses data that can be personal; a delete does not. Option B wins only where value inspection is a development convenience and an audit outage must not block it. This is a Dilemma, like the same question in #4416, so the two plans agree on the class and may differ in the recommendation for the reason above; AGENTS.md section 3 requires gates to fail closed when a lookup fails, which supports A but does not cover a failed audit write by itself.
 - Cancellation propagates as `OperationCanceledException`, never as a `Left`.
+- Class: Dilemma
 
 </details>
 
@@ -124,6 +124,25 @@ The plan adds the registry value reader, an `ICacheValueInspector` with an inter
 ### Rationale
 
 - Option B wins for clients that treat any missing value as a failure; the category would then need the maintainer's choice. The value is serialized with `System.Text.Json` from its runtime type and the response carries `Cache-Control: no-store` and `Content-Type: application/json`. The value is never logged (EventId 536 carries the reason only) and never reaches an `Activity` tag, a metric or the outbox.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>6. Attempts on an id that does not exist (Dilemma D6)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Audit every attempt that passes the option and tenant checks, found or not: the event is written after the registry lookup and before any value is read, with `Metadata` `found` true or false (an id of another tenant counts as not found)** | Probing ids leaves evidence; no extra round trip | A read store row per probe |
+| **B) Audit only reads that find an entry** | Fewer rows | A caller holding both policies can probe ids with no trace |
+
+### Chosen Option: **A - audit attempts** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option B wins when read-store volume matters more than probe evidence; ids are opaque hashes, so probing is already impractical, which is why B is a valid choice. The metadata key `found` is added to the `CacheAuditSchema` constants of #4414 by this plan's PR 2 (an additive constant).
 - Class: Dilemma
 
 </details>
@@ -196,8 +215,8 @@ PR 2 needs PR 1 and #4414 PR 1 merged and holds exactly these 15 files:
 | 1 | `src/Encina.Caching/Abstractions/ICacheValueInspector.cs` | new (public interface, `CacheValueRequest` record, `CacheValueView` record) |
 | 2 | `src/Encina.Caching/Diagnostics/CacheValueInspector.cs` | new (internal sealed) |
 | 3 | `src/Encina.Caching/Configuration/CacheDiagnosticsOptions.cs` | modify (`ShowValues` default false, `MaxValueBytes`) |
-| 4 | `src/Encina.Caching/CacheDiagnosticsServiceCollectionExtensions.cs` | modify (register the inspector; the start validator of Design Choice 2) |
-| 5 | `src/Encina.Caching/Audit/OperationStoreCacheAuditRecorder.cs` | modify (the `ValueRead` kind writes a `ReadAuditEntry` through `IReadAuditStore` in the same per-write scope; file created by #4414 PR 1) |
+| 4 | `src/Encina.Caching/CacheDiagnosticsServiceCollectionExtensions.cs` | modify (register `ICacheValueInspector` through a factory: the real inspector when `ShowValues` is on, resolving the recorder and the read store requirement then, and the null-object `DisabledCacheValueInspector` (a nested internal type in `CacheValueInspector.cs`, answering `cache.diagnostics_values_disabled`) when it is off, so an application that uses diagnostics without audit builds with `ValidateOnBuild`; the start validator of Design Choice 2) |
+| 5 | `src/Encina.Caching/Audit/OperationStoreCacheAuditRecorder.cs` | modify (the `ValueRead` kind, unmapped in #4414 PR 1 where it returns the `Left`, now writes a `ReadAuditEntry` with `EntityType` `CacheEntry`, `EntityId` from `CacheAuditEvent.EntityId`, `AccessMethod.Api`, `EntityCount` 1 and `Purpose` `cache-diagnostics` through `IReadAuditStore` in the same per-write scope; adds the metadata-key constant `found`; file created by #4414 PR 1) |
 | 6 | `src/Encina.Caching/Diagnostics/CacheValueInspectionLog.cs` | new (EventIds 534-537) |
 | 7 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingValueInspection = (534, 537)`) |
 | 8 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (add the range to the `Encina.Caching` entry) |
@@ -212,9 +231,9 @@ PR 2 needs PR 1 and #4414 PR 1 merged and holds exactly these 15 files:
 Tasks:
 
 1. **Create** `ICacheValueInspector.GetValueAsync(CacheValueRequest request, CancellationToken ct)` returning `ValueTask<Either<EncinaError, CacheValueView>>`; `CacheValueRequest` carries `TenantId` (`string?`), `Id`, `UserId` (required, non-blank: the endpoint rejects an unauthenticated identity first). `CacheValueView` carries the redacted key, the cached-at instant, the value as a JSON string or the `valueOmitted` reason.
-2. **Create** `CacheValueInspector`: in this order: (a) `ShowValues` off returns `cache.diagnostics_values_disabled` (`ErrorCategory.Forbidden`, constant message "Cached value inspection is disabled."); (b) under multi-tenancy (`MultiTenancyMarker` registered, checked with `IServiceProviderIsService`) a null tenant returns `cache.diagnostics_tenant_required`; (c) the registry lookup by equality of tenant and id, otherwise `cache.diagnostics_key_not_found`; (d) the write-ahead audit through `ICacheAuditRecorder` (`ValueRead`, Design Choice 3), a `Left` returns `cache.diagnostics_value_audit_failed` and logs EventId 534 with the code; (e) the reader re-reads the entry from the provider, the value is serialized with `System.Text.Json` from its runtime type, over `MaxValueBytes` or not serializable gives `valueOmitted` (EventId 536 with the reason only), a reader exception is logged by exception type (EventId 537) and answers `valueOmitted` `unavailable`; (f) EventId 535 logs that a value was served, with no key and no tenant. Nothing is logged that came from the value or the key.
+2. **Create** `CacheValueInspector`: in this order: (a) `ShowValues` off returns `cache.diagnostics_values_disabled` (`ErrorCategory.Forbidden`, constant message "Cached value inspection is disabled."); (b) under multi-tenancy (`MultiTenancyMarker` registered, checked with `IServiceProviderIsService`) a null tenant returns `cache.diagnostics_tenant_required`; (c) the registry lookup by equality of tenant and id (metadata only, no value is read); (d) the audit through `ICacheAuditRecorder` (`ValueRead`, `EntityId` the presented opaque id, Design Choices 3 and 6) written before any value is read, and a `Left` returns `cache.diagnostics_value_audit_failed` and logs EventId 534 with the code; (d2) only now an unknown or other-tenant id returns `cache.diagnostics_key_not_found`; (e) the reader re-reads the entry from the provider, the value is serialized with `System.Text.Json` from its runtime type, over `MaxValueBytes` or not serializable gives `valueOmitted` (EventId 536 with the reason only), a reader exception is logged by exception type (EventId 537) and answers `valueOmitted` `unavailable`; (f) EventId 535 logs that a value was served, with no key and no tenant. Nothing is logged that came from the value or the key.
 3. **Modify** the recorder, options and registration as the table says. The validator uses `IServiceProviderIsService` and fails the host when `ShowValues` is on and `ICacheAuditRecorder` or the read store descriptor is missing.
-4. **Tests:** values returned only with the option on; tenant A never reads tenant B's id (equality, and an id of another tenant equals "not found"); a missing tenant under multi-tenancy is denied before any registry access; an audit `Left` and an audit exception both deny and log 534 and the value is never returned; one `ReadAuditEntry` per read with user, tenant, id and purpose and no key or value; over-size and non-serializable values give `valueOmitted`; a throwing reader gives 537 and no leak; logs captured by a fake logger never contain the value; cancellation propagates; DI is built with `ValidateOnBuild` and `ValidateScopes`. Guard tests: null request, blank `Id`, blank `UserId`, null services in the registration; a null `TenantId` is valid in single-tenant mode and gets a valid-result test.
+4. **Tests:** values returned only with the option on; tenant A never reads tenant B's id (equality, and an id of another tenant equals "not found"); a missing tenant under multi-tenancy is denied before any registry access; an audit `Left` and an audit exception both deny and log 534 and the value is never returned; one `ReadAuditEntry` per read with user, tenant, id and purpose and no key or value; over-size and non-serializable values give `valueOmitted`; a throwing reader gives 537 and no leak; logs captured by a fake logger never contain the value; cancellation propagates; DI is built with `ValidateOnBuild` and `ValidateScopes`. Both DI states are tested with `ValidateOnBuild` and `ValidateScopes`: `ShowValues` off without any audit registration builds and answers `cache.diagnostics_values_disabled`; on without the recorder fails the start validator. Contract of the arguments (decided): a null request throws `ArgumentNullException` and a blank `Id` or `UserId` throws `ArgumentException` (the endpoint always supplies them, so a blank one is a programming error, never a `Left`); an unknown id is the `Left` `cache.diagnostics_key_not_found`. Guard tests go through the public `ICacheValueInspector` resolved from a provider built by the registration (the internal class is not constructible from `Encina.GuardTests`, which `Encina.Caching` grants no `InternalsVisibleTo`): null request, blank `Id`, blank `UserId`, null services in the registration; a null `TenantId` is valid in single-tenant mode and gets a valid-result test.
 
 </details>
 
@@ -235,7 +254,7 @@ KEY RULES:
 - Fail closed everywhere: option off, no tenant, another tenant's id, a failed audit write all deny; the audit is written before the value is read.
 - Never log, tag or store a value, a raw key or EncinaError.Message; codes and exception types only.
 - Error codes with constant messages and named ADR-062 categories; cancellation propagates, never a Left.
-- Follow the maintainer's answers to Design Choices 1, 2 and 5, given in your brief.
+- Follow the maintainer's answers to Design Choices 1, 2, 3, 5 and 6, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/KeyGeneration/CacheKeyRedactor.cs
@@ -251,7 +270,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 needs PR 2 and #276 PR 3 merged and holds exactly these 7 files:
+PR 3 needs PR 2, #276 PR 3 and #4416 PR 1 merged and holds exactly these 7 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -265,7 +284,7 @@ PR 3 needs PR 2 and #276 PR 3 merged and holds exactly these 7 files:
 
 Tasks:
 
-1. **Modify** `MapEncinaCacheDiagnostics(this IEndpointRouteBuilder, string authorizationPolicy, string prefix = "/cache", string? valuesPolicy = null)`: with `ShowValues` on `valuesPolicy` is required (`ArgumentException`-style startup failure naming the parameter), non-blank and registered like the first policy; with `ShowValues` off a non-null `valuesPolicy` throws (an unused second policy hides a misconfiguration); with `valuesPolicy` null the value route is not mapped at all. The route group of `GET {prefix}/keys/{id}/value` requires both policies. The handler reads `IRequestContext`, rejects an unauthenticated `Identity` with `cache.diagnostics_identity_required` (`Unauthenticated`, the helper of #4416 or created here), calls `ICacheValueInspector` and maps errors through the existing `ProblemDetailsExtensions`; responses carry `Cache-Control: no-store`.
+1. **Modify** `MapEncinaCacheDiagnostics(this IEndpointRouteBuilder, string authorizationPolicy, string prefix = "/cache", string? valuesPolicy = null)`: with `ShowValues` on `valuesPolicy` is required (`ArgumentException`-style startup failure naming the parameter), non-blank and registered like the first policy; with `ShowValues` off a non-null `valuesPolicy` throws (an unused second policy hides a misconfiguration); with `valuesPolicy` null the value route is not mapped at all. The route group of `GET {prefix}/keys/{id}/value` requires both policies. The handler reads `IRequestContext`, rejects an unauthenticated `Identity` with `cache.diagnostics_identity_required` (`Unauthenticated`) through `CacheDiagnosticsIdentity.RequireAuthenticated` of #4416, calls `ICacheValueInspector` and maps errors through the existing `ProblemDetailsExtensions`; responses carry `Cache-Control: no-store`.
 2. **Tests (test server):** 401 without authentication, 403 with only the first policy, 200 with both, the mapping throws on a blank or unregistered `valuesPolicy` and on the option and parameter mismatch, tenant isolation over HTTP, the audit row exists after a read, the raw key and any value never appear in a header or a log.
 3. **Integration test:** a real Redis provider through the shared fixture (`[Trait("Category", "Integration")]`, `[Collection("Redis")]`-style, never its own container): a cached `[Cache]` query result written through the real codec is read back over HTTP, another tenant's id gets 404, and the in-memory read store holds the event.
 
@@ -330,18 +349,22 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **EventIds:** `CachingValueInspection` 534-537, emitted only by `Encina.Caching`: 534 value read denied because the audit write failed, 535 value served (no key, no tenant), 536 value omitted (reason), 537 value reader failed (exception type). Verified free against the registry (`500-549` assigned to cache-patterns-2) and the sibling plans (#272 500-507, #274 508-513, #275 514-519, #4411 520-523, #4412 524-525, #4413 526-527, #4414 528-533); 538-549 belong to #4417.
-2. **Error codes (ADR-062):** `cache.diagnostics_values_disabled` `Forbidden`; `cache.diagnostics_value_audit_failed` `Unavailable`; `cache.diagnostics_identity_required` `Unauthenticated`; `cache.diagnostics_tenant_required` (`InvalidRequest`) and `cache.diagnostics_key_not_found` (`NotFound`) are #276's. All messages are constants.
+2. **Error codes (ADR-062):** `cache.diagnostics_values_disabled` `Forbidden`; `cache.diagnostics_value_audit_failed` `Internal` (ADR-062 R4, a store failure); `cache.diagnostics_identity_required` `Unauthenticated`; `cache.diagnostics_tenant_required` (`InvalidRequest`) and `cache.diagnostics_key_not_found` (`NotFound`) are #276's. All messages are constants.
 3. **Coverage targets (per flag, set in the PR that adds each file; measured values go in the PR body):**
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Encina.Caching/Abstractions/CacheValueReader.cs` | 0 | 0 | 0 | 0 | A delegate declaration, no executable line |
 | `Encina.Caching/Abstractions/ICacheValueInspector.cs` | 0 | 0 | 0 | 0 | An interface and two records without validation |
-| `Encina.Caching/Diagnostics/CacheValueInspector.cs` | 95 | 0 | 0 | 0 | Every deny path, the omit reasons and the audit failure are unit tested; internal, no `InternalsVisibleTo` for the guard project |
+| `Encina.Caching/Diagnostics/CacheValueInspector.cs` | 95 | 20 | 0 | 0 | Every deny path, the omit reasons and the audit failure are unit tested; the guard flag reaches the argument checks through the public interface in `CacheValueInspectorGuardTests.cs` (the class is internal and `Encina.Caching` grants no `InternalsVisibleTo` to `Encina.GuardTests`), hence 20 |
 | `Encina.Caching/Diagnostics/CacheValueInspectionLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the inspector tests; internal |
 | `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | 98 | 20 | 0 | 0 | The row on `origin/main` today (unit 98, guard 20, contract 0); the static reader and the pass-through are unit tested; never lowered |
-| `Encina.Caching/Diagnostics/CacheKeyRegistry.cs`, `CacheOutcomeAccessor.cs`, `Configuration/CacheDiagnosticsOptions.cs`, `CacheDiagnosticsServiceCollectionExtensions.cs`, `Audit/OperationStoreCacheAuditRecorder.cs` | keep | keep | 0 | 0 | Rows are created by #276 and #4414 (none exists on `origin/main` today); this plan never lowers them and tests its additions in `CacheValueReaderTests.cs` and `CacheValueInspectorTests.cs` |
-| `Encina.AspNetCore/CacheDiagnosticsEndpointExtensions.cs` | keep | keep | 0 | 30 | The row is created by #276 PR 3; this plan adds an integration target of 30 in PR 3, the PR that adds the Redis test (the route handler and its startup rules run there; the other handlers are not reached) |
+| `Encina.Caching/Diagnostics/CacheKeyRegistry.cs` | 100 | 0 | 0 | 0 | The numbers #276 sets (unit 100, guard 0); the reader field is covered by `CacheValueReaderTests.cs`; no row exists on `origin/main` until #276 PR 1 |
+| `Encina.Caching/Diagnostics/CacheOutcomeAccessor.cs` | 100 | 50 | 0 | 0 | The numbers #276 sets (unit 100, guard 50); the optional parameter's valid-result test is in the guard file of PR 1 |
+| `Encina.Caching/Configuration/CacheDiagnosticsOptions.cs` | 100 | 80 | 0 | 0 | The numbers #276 sets (unit 100, guard 80); `ShowValues` and `MaxValueBytes` are covered by the inspector tests |
+| `Encina.Caching/CacheDiagnosticsServiceCollectionExtensions.cs` | 100 | 100 | 0 | 0 | The numbers #276 sets (unit 100, guard 100); both factory branches are DI tested |
+| `Encina.Caching/Audit/OperationStoreCacheAuditRecorder.cs` | 95 | 15 | 0 | 0 | The numbers #4414 sets (unit 95, guard 15); the `ValueRead` mapping is covered by `CacheValueInspectorTests.cs` |
+| `Encina.AspNetCore/CacheDiagnosticsEndpointExtensions.cs` | 90 | 70 | 0 | 30 | Unit 90 and guard 70 are the numbers #276 sets (no row exists on `origin/main` until #276 PR 3); this plan adds an integration target of 30 in PR 3, the PR that adds the Redis test (the value route and its startup rules run there; the other handlers are not reached) |
 
    The worker measures every flag per PR with `coverage-report.cs`; no target is lowered (`target-ratchet`) and the CRAP table of changed methods stays at 10 or below.
 4. **Property, contract, load, benchmark:** none: one inspector implementation, a development tool off the request path.
@@ -432,7 +455,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - The audit event is written before the value is read; a failed write denies the read.
 - Tenant equality everywhere; a missing tenant or identity denies before data access.
-- Follow the maintainer's answers to Design Choices 1, 2 and 5, given in your brief.
+- Follow the maintainer's answers to Design Choices 1, 2, 3, 5 and 6, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs
@@ -471,7 +494,7 @@ REFERENCE FILES:
 | #276 PRs 1 to 3 (registry, `ICacheDiagnostics`, endpoints) | Open | Plan merged |
 | #4414 PR 1 (`ICacheAuditRecorder`) | Open | PR 2 of this plan needs it |
 | #274 PRs 1 to 3 (codec used by the Redis provider) | Open | The integration test reads through it |
-| Maintainer answers to Design Choices 1, 2 and 5 | Pending | Asked when work starts; Design Choice 1 option C ends the work |
+| Maintainer answers to Design Choices 1, 2, 3, 5 and 6 | Pending | Asked when work starts; Design Choice 1 option C ends the work |
 
 Order inside the family: #4414 PR 1, then #4416, then this plan; #4417 is independent.
 
