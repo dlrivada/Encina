@@ -2,7 +2,7 @@
 
 > **Issue**: [#4412](https://github.com/dlrivada/Encina/issues/4412)
 > **Type**: Feature
-> **Complexity**: Medium (2 pull requests of 15 and 6 files)
+> **Complexity**: Medium (3 pull requests of 5, 15 and 6 files)
 > **Estimated Scope**: about 350 lines of production code, about 700 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4412 adds the `MaxMemoryMb` member to the per-tenant cache policy of #275 and enforces it from the stored size of each entry. Re-checked against `origin/main` (19b761ffa):
+Issue #4412 adds the `MaxMemoryMb` member to the per-tenant cache policy of #275 and enforces it from the stored size of each entry. Re-checked against `origin/main` (0a7ce2ae1):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -96,7 +96,7 @@ The plan adds one policy member, byte accounting next to the entry accounting of
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A `Left` from the codec (an unsupported type, a payload over the codec's limit) or an exception denies admission for that entry and logs the error code (EventId 525); no tenant is ever left ungoverned** | Missing information never grants the quota; the request is not affected | A type the codec cannot encode is never cached for a tenant that has a memory quota |
+| **A) A `Left` from the measurement (an unsupported type, a payload over the codec's limit) or an exception denies admission for that entry and logs the error code (EventId 525); no tenant is ever left ungoverned** | Missing information never grants the quota | A type that cannot be measured is never cached for a tenant that has a memory quota |
 | **B) Admit the entry unmeasured** | The cache keeps working | The quota is bypassed exactly when the size is unknown |
 
 ### Chosen Option: **A - deny when unmeasurable**
@@ -104,28 +104,29 @@ The plan adds one policy member, byte accounting next to the entry accounting of
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed: when context is missing ... or a lookup fails, the gate denies") and the same fail-closed reading #275 applies to a failed policy lookup. The reaction holds under every option of Design Choice 1 (a failed measurement, whoever performs it, denies). How a denial surfaces to the caller is the cache-bypass behavior of the entry quota; this plan adds no new surface and no error code.
+- **Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed: when context is missing ... or a lookup fails, the gate denies") and the same fail-closed reading #275 applies to a failed policy lookup. The rule is only that an unmeasured entry is never admitted to the quota; it holds under every option of Design Choice 1 (a failed measurement, whoever performs it, denies) and of Design Choice 2. This choice fixes no denial surface (no error code, no `Left`): how a denial reaches the caller is whatever the maintainer answers for the denial reaction of #275, and this plan reuses that surface unchanged.
 - A cancelled token propagates as `OperationCanceledException` and is never a deny.
 
 </details>
 
 <details>
-<summary><strong>5. Units, bounds and keys</strong></summary>
+<summary><strong>5. Units and bounds (Dilemma D4)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `MaxMemoryMb` is an `int?` of mebibytes (1,048,576 bytes), valid from 1 to 1,048,576 (one tebibyte), accounted in `long` bytes; the accounting row of a key is the key `(expiry, bytes)` in the per-tenant map of #275, so a rewrite replaces the previous figure and the key stays the tenant-qualified generated key** | No overflow (`int` times 1,048,576 would overflow, `long` does not); no new table; the keys are as injective as #275's | The bound of one tebibyte is arbitrary but far above any node |
-| **B) A `long` number of bytes** | Finer | Not what the issue names (`MaxMemoryMb`) |
+| **A) `MaxMemoryMb` is an `int?` of mebibytes (1,048,576 bytes), valid from 1 to 1,048,576 (one tebibyte), accounted in `long` bytes** | The issue's name and example (`MaxMemoryMb = 25`); no overflow (`int` times 1,048,576 would overflow, `long` does not) | The upper bound is a chosen limit, far above any node |
+| **B) A `long` number of bytes, any positive value** | No arbitrary bound | Not the member the issue names |
+| **C) `int?` of mebibytes with no upper bound other than `int.MaxValue`** | No chosen limit; still no overflow in `long` | A value of two billion mebibytes passes validation |
 
-### Chosen Option: **A - mebibytes in an `int?`, bytes in a `long`**
+### Chosen Option: **A - mebibytes in an `int?`, one tebibyte upper bound** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Trivial
-- **Settled by:** the issue's member name and example (`MaxMemoryMb = 25`), and the validation convention of #275 PR 1 (positive values, a message that names the member and never a tenant id).
-- Tenant keys follow #275: the table is keyed by the tenant id verbatim, the implicit single-tenant case uses the reserved segment `default`, and the two modes never share a table; the bound `MaxTrackedTenants` and the lazy purge of idle tenants (which also drops an offboarded tenant's bytes) are #275's and apply unchanged.
+- Option B wins when tenants are sized in bytes (tests with tiny quotas); option C wins when no bound should ever be argued about. The validation message names the member and never a tenant id.
+- Class: Dilemma
+- Accounting model: this plan assumes the node-local accounting map of the #275 plan (key to expiry, bounded by `MaxTrackedTenants`, tenant id verbatim, reserved `default` segment for the implicit tenant, idle and offboarded tenants purged lazily) and adds the byte figure to each row, so a rewrite replaces the previous figure. If the maintainer answers the quota Dilemma of #275 with another model (distributed counters), this plan is re-planned together with it; the Dilemma of Design Choice 2 is answered with that one.
 
 </details>
 
@@ -133,40 +134,25 @@ The plan adds one policy member, byte accounting next to the entry accounting of
 
 ## Implementation Phases
 
-### Phase 1: Policy member, accounting and enforcement (pull request 1)
+### Phase 1: The entry sizer and its registration (pull request 1)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 starts after #275 PR 2 and #274 PR 2 and holds exactly these 15 files:
+PR 1 starts after #274 PR 2 and #275 PR 2 and holds exactly these 5 files. It changes no behavior (nothing calls the sizer yet) and builds alone:
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `src/Encina.Caching/Tenancy/CacheTenantPolicy.cs` | modify (`int? MaxMemoryMb`; `Validate()` rule of Design Choice 5) |
-| 2 | `src/Encina.Caching/Tenancy/TenantCacheUsageTracker.cs` | modify (bytes per key, running total per tenant under the tenant's own lock) |
-| 3 | `src/Encina.Caching/Tenancy/CacheEntrySizer.cs` | new (internal sealed, over `ICacheValueCodec`) |
-| 4 | `src/Encina.Caching/Tenancy/TenantCacheGovernor.cs` | modify (`TryAdmit` takes the size; reports "size required" in the decision) |
-| 5 | `src/Encina.Caching/Tenancy/ITenantCacheGovernor.cs` | modify (the `TryAdmit` size parameter and the decision's `RequiresSize` field) |
-| 6 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (measure before admission only when `RequiresSize`; one private method) |
-| 7 | `src/Encina.Caching/Diagnostics/CacheTenantMemoryLog.cs` | new (EventIds 524-525) |
-| 8 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingTenantMemory = (524, 525)`) |
-| 9 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (add the range name to the `Encina.Caching` list) |
-| 10 | `docs/engineering/eventid-block-registry.md` | modify (row `CachingTenantMemory \| 524-525 \| Caching \| historical`, block row split; read `EventIdRegistryAgreementTests` first) |
-| 11 | `tests/Encina.UnitTests/Caching/TenantCacheMemoryQuotaTests.cs` | new |
-| 12 | `tests/Encina.UnitTests/Caching/TenantCacheGovernorTests.cs` | modify (the new parameter and decision field) |
-| 13 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the policy member, the changed `TryAdmit` line RS0017, the decision field) |
-| 14 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the new `EventIdRanges` field) |
-| 15 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
-
-`ITenantCacheGovernor` has one implementer after #275 PR 2 (the internal `TenantCacheGovernor`) and its unit tests; the worker greps `: ITenantCacheGovernor` and `For<ITenantCacheGovernor>` on the then-current `origin/main` and updates every hit in the same pull request (the interface change lands with its implementer, so the build is never broken between pull requests). The size parameter is required, not optional: an optional default of 0 would let a forgotten call site skip the quota.
+| 1 | `src/Encina.Caching/Tenancy/CacheEntrySizer.cs` | new (internal sealed, over `ICacheValueCodec`) |
+| 2 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (`TryAddSingleton<CacheEntrySizer>()` inside the `TenantPolicies.Enabled` registration of #275) |
+| 3 | `tests/Encina.UnitTests/Caching/CacheEntrySizerTests.cs` | new |
+| 4 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (provider built with `ValidateOnBuild` and `ValidateScopes`: the sizer exists only when tenant policies are enabled) |
+| 5 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 
 Tasks:
 
-1. **Modify** `CacheTenantPolicy` and `Validate()`: `MaxMemoryMb` null or 1 to 1,048,576; the message names the member.
-2. **Create** `CacheEntrySizer`: `Either<EncinaError, long> Measure<T>(T entry)` calls `ICacheValueCodec.Encode` and returns the array length; it never logs a value or a key.
-3. **Modify** the tracker and governor: `TryAdmit(tenantKey, cacheKey, expiry, sizeBytes, policy)` computes `total - previousBytes(cacheKey) + sizeBytes` for a rewrite, denies when it exceeds `MaxMemoryMb * 1,048,576L` (a first entry above the whole quota is denied too), purges expired rows first and subtracts them, and returns the entry-limit and memory-limit denials as distinct reasons (counted with `reason = quota` and `reason = memory`, EventId 524 for memory with the redacted key). The check-and-add stays inside the tenant's lock, so concurrent writes cannot exceed the limit.
-4. **Modify** the behavior: when the decision says a size is required, `Measure` the entry first; a `Left` or an exception denies admission and logs EventId 525 by code or exception type (Design Choice 4); otherwise admit with the size.
-5. **Tests:** two tenants with different `MaxMemoryMb` never see each other's bytes; a rewrite with a smaller value frees room; expiry frees bytes with `FakeTimeProvider`; the first entry over the quota is denied; a throwing or `Left` codec denies and the handler result is still returned; cancellation propagates; no `MaxMemoryMb` means no encode call (a substitute codec asserts it); the `default` single-tenant mode is governed; the entry quota and the memory quota of one tenant both apply.
+1. **Create** `CacheEntrySizer`: `Either<EncinaError, long> Measure<T>(T entry)` calls `ICacheValueCodec.Encode` and returns the array length; it never logs a value or a key; cancellation is not involved (the call is synchronous). The type is internal, so no public constructor and no guard surface exist.
+2. **Tests:** a length, a `Left` and a throwing codec (substitute codec); the DI test above.
 
 </details>
 
@@ -175,19 +161,75 @@ Tasks:
 
 ```
 CONTEXT:
-#275 PR 1 and PR 2 are merged (CacheTenantPolicy, TenantCacheUsageTracker, TenantCacheGovernor, ITenantCacheGovernor, the behavior hook) and #274 PR 1 and PR 2
-(ICacheValueCodec registered as a singleton). The entry quota counts keys; this issue adds bytes.
+#274 PR 1 and PR 2 are merged (ICacheValueCodec registered as a singleton) and #275 PR 1 and PR 2 (tenant policies, governor, TenantPolicies.Enabled registration).
 
 TASK:
-1. Add MaxMemoryMb to CacheTenantPolicy with its Validate() rule; account bytes per key in TenantCacheUsageTracker and enforce them in TryAdmit.
-2. Create CacheEntrySizer over ICacheValueCodec and call it from the behavior only when the tenant's policy has MaxMemoryMb.
+Create the internal CacheEntrySizer over ICacheValueCodec, register it with TryAddSingleton when tenant policies are enabled, and write the unit and DI tests; ask mechanical-fixer for the manifest rows.
+
+KEY RULES:
+- No behavior change in this pull request; the sizer never logs a key or a value.
+- DI test built with ValidateOnBuild and ValidateScopes.
+
+REFERENCE FILES:
+- src/Encina.Caching/ServiceCollectionExtensions.cs
+- tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs
+```
+
+</details>
+
+### Phase 2: Policy member, accounting and enforcement (pull request 2)
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+PR 2 starts after PR 1 and holds exactly these 15 files:
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/Encina.Caching/Tenancy/CacheTenantPolicy.cs` | modify (`int? MaxMemoryMb`; `Validate()` rule of Design Choice 5) |
+| 2 | `src/Encina.Caching/Tenancy/TenantCacheUsageTracker.cs` | modify (bytes per key, running total per tenant under the tenant's own lock) |
+| 3 | `src/Encina.Caching/Tenancy/TenantCacheGovernor.cs` | modify (takes the internal `CacheEntrySizer` through its internal constructor and measures when the policy has `MaxMemoryMb`) |
+| 4 | `src/Encina.Caching/Tenancy/ITenantCacheGovernor.cs` | modify (`TryAdmit` becomes `ValueTask<bool> TryAdmitAsync<T>(..., T entry, CancellationToken)`) |
+| 5 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (passes the entry to `TryAdmitAsync`; no constructor change, so no new guard surface) |
+| 6 | `src/Encina.Caching/Diagnostics/CacheTenantMemoryLog.cs` | new (EventIds 524-525) |
+| 7 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.TenantPolicies.cs` | modify (counter reason `memory`) |
+| 8 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingTenantMemory = (524, 525)`) |
+| 9 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (add the range name to the `Encina.Caching` list) |
+| 10 | `docs/engineering/eventid-block-registry.md` | modify (row `CachingTenantMemory \| 524-525 \| Caching \| historical`, block row split; read `EventIdRegistryAgreementTests` first) |
+| 11 | `tests/Encina.UnitTests/Caching/TenantCacheMemoryQuotaTests.cs` | new (includes a DI-built governor with `ValidateOnBuild` and `ValidateScopes`) |
+| 12 | `tests/Encina.UnitTests/Caching/TenantCacheGovernorTests.cs` | modify (the new method and the policy member) |
+| 13 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the policy member, the changed interface line RS0017) |
+| 14 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the new `EventIdRanges` field) |
+| 15 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
+
+`ITenantCacheGovernor` has one implementer after #275 PR 2 (the internal `TenantCacheGovernor`) plus substitutes in its tests and in the behavior tests; the worker greps `: ITenantCacheGovernor` and `For<ITenantCacheGovernor>` on the then-current `origin/main` and updates every hit inside rows 3, 5 and 12 (if the grep finds a file outside the list the pull request is split again). The entry is passed to the governor instead of a size so the behavior needs no new dependency.
+
+Tasks:
+
+1. **Modify** `CacheTenantPolicy` and `Validate()`: `MaxMemoryMb` null or within the bounds of Design Choice 5; the message names the member.
+2. **Modify** the tracker and governor: `TryAdmitAsync` measures only for a policy with `MaxMemoryMb`, computes `total - previousBytes(cacheKey) + sizeBytes` for a rewrite, denies when it exceeds `MaxMemoryMb * 1,048,576L` (a first entry above the whole quota is denied too), purges expired rows first and subtracts them, and returns the entry-limit and memory-limit denials as distinct reasons (counted with `reason = quota` and `reason = memory`, EventId 524 for memory with the redacted key). A `Left` or exception from the sizer denies and logs EventId 525 by code or exception type (Design Choice 4). The check-and-add stays inside the tenant's lock, so concurrent writes cannot exceed the limit. Cancellation propagates.
+3. **Tests:** two tenants with different `MaxMemoryMb` never see each other's bytes; a rewrite with a smaller value frees room; expiry frees bytes with `FakeTimeProvider`; the first entry over the quota is denied; a throwing or `Left` codec denies and the handler result is still returned; cancellation propagates; no `MaxMemoryMb` means no encode call (a substitute codec asserts it); the `default` single-tenant mode is governed; the entry quota and the memory quota of one tenant both apply.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 2</strong></summary>
+
+```
+CONTEXT:
+#275 PR 1 and PR 2 are merged (CacheTenantPolicy, TenantCacheUsageTracker, TenantCacheGovernor, ITenantCacheGovernor, the behavior hook) and PR 1 of this plan
+(CacheEntrySizer registered). The entry quota counts keys; this issue adds bytes.
+
+TASK:
+1. Add MaxMemoryMb to CacheTenantPolicy with its Validate() rule; account bytes per key in TenantCacheUsageTracker and enforce them in TryAdmitAsync, which measures through CacheEntrySizer only for a policy with MaxMemoryMb.
+2. Pass the entry from the behavior to TryAdmitAsync (no constructor change).
 3. Create CacheTenantMemoryLog (EventIds 524-525), register CachingTenantMemory = (524, 525) in EventIdRanges.cs, the allocation test and the registry document.
 4. Write the unit tests; ask mechanical-fixer for the PublicAPI files and the manifest rows.
 
 KEY RULES:
 - Fail closed: an entry whose size cannot be measured is not cached; cancellation propagates, never a deny.
 - The check-and-add is atomic per tenant; keys are the tenant-qualified generated keys, never logged (CacheKeyRedactor).
-- No cost for tenants without MaxMemoryMb; the size parameter of TryAdmit is required.
+- No cost for tenants without MaxMemoryMb; the entry parameter of TryAdmitAsync is required.
 - Follow the maintainer's answers to Design Choices 1 to 3 given in your brief.
 
 REFERENCE FILES:
@@ -199,16 +241,16 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 2: The bytes gauge, the Redis integration test and documentation (pull request 2)
+### Phase 3: The bytes gauge, the Redis integration test and documentation (pull request 3)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 6 files:
+PR 3 holds exactly these 6 files:
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.TenantPolicies.cs` | modify (observable gauge `encina.cache.tenant.bytes`; counter reason `memory`) |
+| 1 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.TenantPolicies.cs` | modify (observable gauge `encina.cache.tenant.bytes`; the counter reason `memory` came with PR 2) |
 | 2 | `tests/Encina.UnitTests/Caching/TenantCacheMemoryMetricsTests.cs` | new (`MeterListener`) |
 | 3 | `tests/Encina.IntegrationTests/Infrastructure/Caching/TenantCacheMemoryQuotaIntegrationTests.cs` | new (shared Redis fixture, two tenants) |
 | 4 | `docs/features/handler-caching.md` | modify (`docs-writer`: the memory quota in the "Multi-tenant policies" section of #275) |
@@ -224,14 +266,14 @@ Tasks:
 </details>
 
 <details>
-<summary><strong>Prompt for AI Agents — Phase 2</strong></summary>
+<summary><strong>Prompt for AI Agents — Phase 3</strong></summary>
 
 ```
 CONTEXT:
-PR 1 is merged: MaxMemoryMb is enforced and EventIds 524-525 exist.
+PR 2 is merged: MaxMemoryMb is enforced, the memory counter reason and EventIds 524-525 exist.
 
 TASK:
-Add the encina.cache.tenant.bytes gauge and the memory reason to the metrics partial, the metrics unit test and the Redis integration test; ask docs-writer for the handler-caching.md addition and mechanical-fixer for the manifest rows and the fragment.
+Add the encina.cache.tenant.bytes gauge to the metrics partial, the metrics unit test and the Redis integration test; ask docs-writer for the handler-caching.md addition and mechanical-fixer for the manifest rows and the fragment.
 
 KEY RULES:
 - The tenant tag appears only with multi-tenancy on (ADR-054 D4); series are bounded by MaxTrackedTenants.
@@ -279,11 +321,11 @@ REFERENCE FILES:
 
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
-| Production code | 2 | 9 | New: sizer, log; modified: policy, tracker, governor, interface, behavior, metrics partial, `EventIdRanges.cs`, two PublicAPI files |
-| Tests | 3 | 3 | New: quota, metrics and integration tests; modified: governor tests, allocation test, registry document |
+| Production code | 2 | 9 | New: sizer, log; modified: policy, tracker, governor, interface, behavior, metrics partial (twice), `EventIdRanges.cs`, DI extensions, two PublicAPI files |
+| Tests | 5 | 5 | New: sizer, quota, metrics and integration tests; modified: DI tests, governor tests, allocation test, registry document |
 | Documentation | 0 | 1 | `docs/features/handler-caching.md` |
-| Configuration | 1 | 2 | One changelog fragment; the manifest is edited in both pull requests |
-| **Total** | **6** | **15** | 2 pull requests of 15 and 6 files, each at most 15 files and 1500 lines |
+| Configuration | 1 | 3 | One changelog fragment; the manifest is edited in each pull request |
+| **Total** | **8** | **18** | 3 pull requests of 5, 15 and 6 files, each at most 15 files and 1500 lines (a file edited twice counts in each) |
 
 ---
 
@@ -298,8 +340,9 @@ Encina is a .NET 10 / C# 14 library, pre-1.0. Issue #4412 adds MaxMemoryMb to th
 caching pipeline behavior, so the 8 cache providers behave the same; the size comes from the codec of #274.
 
 IMPLEMENTATION OVERVIEW:
-1. PR 1: MaxMemoryMb, byte accounting in the tracker, enforcement in TryAdmit, CacheEntrySizer, EventIds 524-525.
-2. PR 2: the bytes gauge, the metrics and Redis integration tests, documentation.
+1. PR 1: CacheEntrySizer and its registration.
+2. PR 2: MaxMemoryMb, byte accounting in the tracker, enforcement in TryAdmitAsync, EventIds 524-525.
+3. PR 3: the bytes gauge, the metrics and Redis integration tests, documentation.
 
 KEY PATTERNS:
 - Fail closed: an unmeasurable entry is not cached; cancellation propagates; no tenant under multi-tenancy never reaches the governor (existing bypass).
@@ -325,7 +368,7 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ✅ Include | Gauge `encina.cache.tenant.bytes` and the `memory` reason; tenant tag only with multi-tenancy on (ADR-054 D4); spans belong to #723 (open). |
 | 3 | Structured Logging | ✅ Include | `CacheTenantMemoryLog`, EventIds 524-525 in `CachingTenantMemory`. |
 | 4 | Health Checks | ❌ N/A | In-process accounting has no backend to check. |
-| 5 | Validation | ✅ Include | `MaxMemoryMb` from 1 to 1,048,576 in `CacheTenantPolicy.Validate()`, run by the options validator and on every provider answer (#275). |
+| 5 | Validation | ✅ Include | `MaxMemoryMb` within the bounds of Design Choice 5 in `CacheTenantPolicy.Validate()`, run by the options validator and on every provider answer (#275). |
 | 6 | Resilience | ❌ N/A | In-process accounting; a failed measurement denies the entry (fail closed) rather than retrying. |
 | 7 | Distributed Locks | ❌ N/A | Node-local state, the same per-node limit as #275. |
 | 8 | Transactions | ❌ N/A | Cache operations are independent of units of work. |
@@ -342,21 +385,22 @@ REFERENCE FILES:
 
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
-| #275 PR 1 and PR 2 (policy, tracker, governor, behavior hook; PR 3 only adds duration and rate limiting) | Open | PR 1 of this plan needs them |
-| #274 PR 1 and PR 2 (`ICacheValueCodec` and its registration) | Open | PR 1 needs them; PR 2's exact-length assertion needs #274 PR 3 and is conditional |
+| #275 PR 1 and PR 2 (policy, tracker, governor, behavior hook; PR 3 only adds duration and rate limiting) | Open | PR 1 and PR 2 of this plan need them |
+| #274 PR 1 and PR 2 (`ICacheValueCodec` and its registration) | Open | PR 1 needs them; the exact-length assertion of PR 3 needs #274 PR 3 and is conditional |
 | Block 500-549 of the EventId registry | ✅ Assigned | 524-525 free |
-| Maintainer answers to Design Choices 1 to 3 | Pending | Asked when work starts, together with the quota Dilemma of #275 |
+| Maintainer answers to Design Choices 1 to 4 | Pending | Asked when work starts, together with the quota Dilemma of #275 |
 
-Coverage targets (per flag, set in the pull request that adds each file; every row's test file is in the same pull request):
+Coverage targets (per flag; each row's test file is in the pull request that sets the target). The manifest has no row yet for the #275 files because #275 is a plan; the numbers below are the values this plan sets for them, which the #275 pull requests must not undercut (the larger of the two applies, `target-ratchet`):
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
-| `Encina.Caching/Tenancy/CacheEntrySizer.cs` | 100 | 0 | 0 | 0 | Two branches (a length, a `Left`) driven by a substitute codec; internal, no `InternalsVisibleTo` for the guard project |
-| `Encina.Caching/Diagnostics/CacheTenantMemoryLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the quota tests |
-| `Encina.Caching/Tenancy/CacheTenantPolicy.cs`, `TenantCacheUsageTracker.cs` | keep (100 in #275) | 0 | 0 | 0 | The targets #275 sets are kept; the new branches are tested in PR 1 |
-| `Encina.Caching/Tenancy/TenantCacheGovernor.cs`, `ITenantCacheGovernor.cs` | keep (95; 40 integration) | 0 | 0 | keep | Kept; the Redis test of PR 2 adds a path to the integration flag without raising its target |
-| `Encina.Caching/Diagnostics/CachePatternMetrics.TenantPolicies.cs` | keep (90) | 0 | 0 | 0 | The gauge callback and the reason branch run in the metrics test of PR 2 |
-| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | keep (98 on main today) | keep (20) | 0 | 0 | The existing manifest values are never lowered; the new private method is unit tested in PR 1 |
+| `Encina.Caching/Tenancy/CacheEntrySizer.cs` (PR 1) | 100 | 0 | 0 | 0 | Three branches (a length, a `Left`, an exception) driven by a substitute codec; internal, no `InternalsVisibleTo` for the guard project |
+| `Encina.Caching/Diagnostics/CacheTenantMemoryLog.cs` (PR 2) | 90 | 0 | 0 | 0 | Generated bodies run in the quota tests |
+| `Encina.Caching/Tenancy/CacheTenantPolicy.cs`, `TenantCacheUsageTracker.cs` (PR 2) | 100 | 0 | 0 | 0 | Validation and accounting are pure logic driven by unit tests; records and internal types, no guard surface |
+| `Encina.Caching/Tenancy/TenantCacheGovernor.cs`, `ITenantCacheGovernor.cs` (PR 2) | 95 | 0 | 0 | 40 | Every decision is driven by the quota tests; the integration 40 is the Redis test of PR 3 and is set in PR 3, the pull request that adds that test file; internal governor |
+| `Encina.Caching/Diagnostics/CachePatternMetrics.TenantPolicies.cs` (PR 2 reason, PR 3 gauge) | 90 | 0 | 0 | 0 | The reason branch runs in the quota tests (PR 2) and the gauge callback in the metrics test (PR 3) |
+| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` (PR 2) | 98 | 20 | 0 | 0 | The manifest has these exact values today and they are kept; the changed call is unit tested in PR 2 |
+| `Encina.Caching/ServiceCollectionExtensions.cs` (PR 1) | 60 | 30 | 10 | 0 | No per-file row exists on main, so the package targets (unit 60, guard 30, contract 10) apply and are not lowered; the new registration line is run by the DI test |
 
 The worker measures every flag with `coverage-report.cs` per pull request and reports the numbers; no target is lowered (`target-ratchet`).
 
@@ -364,5 +408,5 @@ The worker measures every flag with `coverage-report.cs` per pull request and re
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 3) when work starts, together with the quota Dilemma of #275, records the answers under `## Maintainer Decisions`, then briefs the two pull requests in order.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 3 and 5) when work starts, together with the quota Dilemma of #275, records the answers under `## Maintainer Decisions`, then briefs the three pull requests in order.
 2. No issue file is written: the deferred module dimension is #746 (open) and the policy audit is #4414.
