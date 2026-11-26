@@ -2,7 +2,7 @@
 
 > **Issue**: [#4397](https://github.com/dlrivada/Encina/issues/4397)
 > **Type**: Feature
-> **Complexity**: Medium (4 code phases, 4 pull requests of 14, 10, 10 and 12 files)
+> **Complexity**: Medium (4 code phases, 4 pull requests of 14, 11, 10 and 14 files)
 > **Estimated Scope**: about 450 lines of production code, about 1,000 lines of tests
 > **Milestone**: Encina 1.0 (caching category, SPEC-000 REQ-027)
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4397 adds the two strategies that the original cache-warming issue (#269) listed and its plan did not ship: warm only the highest-priority queries (top N percent) and warm by historical access patterns. Re-checked against `origin/main` (37b2edd32); #269 is open and its plan is merged, so the engine and `WarmingStrategy { Sequential, Parallel }` do not exist yet and this plan builds on the types that plan defines (#269 Design Choice 3 chose to ship only `Sequential` and `Parallel`).
+Issue #4397 adds the two strategies that the original cache-warming issue (#269) listed and its plan did not ship: warm only the highest-priority queries (top N percent) and warm by historical access patterns. Re-checked against `origin/main` (4047d9a8a); #269 is open and its plan is merged, so the engine and `WarmingStrategy { Sequential, Parallel }` do not exist yet and this plan builds on the types that plan defines (#269 Design Choice 3 chose to ship only `Sequential` and `Parallel`).
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -22,7 +22,7 @@ Issue #4397 adds the two strategies that the original cache-warming issue (#269)
 
 The plan adds a selection step to the #269 engine (`WarmingSelector`), the options `WarmingSelection` and `WarmingTopPercent`, and, for `AccessPattern`, `IWarmingAccessStatistics` with an in-process default fed by `QueryCachingPipelineBehavior` hits. Dispatch stays `IEncina.Send`, so the 8 cache providers (Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB and the planned Memcached of #277) behave identically and no provider changes. If the maintainer answers Design Choice 1 with option C (do not ship), only PR 1 (`TopHeavy`, which needs no statistics) is implemented.
 
-**Family cache-warming-followups (#4396, #4397, #4398) - ownership and order.** #4396 (health check and lock) is implemented first, #4398 (tenant sets) second, this plan last; none of the three depends on the others' types. This plan owns `WarmingSelection`, `WarmingTopPercent`, `WarmingSelector`, `IWarmingAccessStatistics` and EventIds 494-495. All three edit `CacheWarmingService.cs`, `CachingOptions.cs`, `ServiceCollectionExtensions.cs` and `CachePatternLog.Warming.cs`; the later plan rebases on the earlier one. `QueryCachingPipelineBehavior.cs` is also edited by #266, #267, #268 and #271: this plan's PR 3 merges after the sequence recorded in the #267 plan (#266 PR 1, PR 3, PR 4, then #267 PR 3, then #268 PR 1 and PR 2, then #271 PR 5).
+**Family cache-warming-followups (#4396, #4397, #4398) - ownership and order.** #4396 (health check and lock) is implemented first, #4398 (tenant sets) second, this plan last; none of the three uses the others' types, but #4398 PR 2 and this plan's PR 3 and PR 4 edit the same lines of `RequestCacheWarmer.cs` and `CacheWarmingService.cs`, so the later one rebases. This plan owns `WarmingSelection`, `WarmingTopPercent`, `WarmingSelector`, `IWarmingAccessStatistics` and EventIds 494-495. All three edit `CacheWarmingService.cs`, `CachingOptions.cs`, `ServiceCollectionExtensions.cs` and `CachePatternLog.Warming.cs`; the later plan rebases on the earlier one. `QueryCachingPipelineBehavior.cs` is also edited by #266, #267, #268 and #271: this plan's PR 3 merges after the sequence recorded in the #267 plan (#266 PR 1, PR 3, PR 4, then #267 PR 3, then #268 PR 1 and PR 2, then #271 PR 5).
 
 **Affected packages:** `Encina.Caching`. **Provider category:** Caching (8), behavior-level.
 
@@ -141,8 +141,8 @@ The plan adds a selection step to the #269 engine (`WarmingSelector`), the optio
 
 ### Rationale
 
-- **Class:** Trivial
-- **Settled by:** the precedent of the metadata marker `CacheRefreshMarker.Key` of the #267 plan (Phase 2 task 1: a marked dispatch is treated differently by the behavior) and `QueryCachingPipelineBehavior.ShouldUseCache` (lines 133-141: a request that fails the tenant or user check never reads the cache). It applies when statistics ship.
+- **Class:** Settled
+- **Settled by:** the purpose stated in #4397 ("what traffic actually asks for", `AccessPattern` warms by historical access patterns) and `QueryCachingPipelineBehavior.ShouldUseCache` (`QueryCachingPipelineBehavior.cs:133-141`: a request that fails the tenant or user check never reads the cache, so it is not a hit); only option A counts access and nothing else. The marker is this plan's own mechanism (no sibling type is relied on). It applies when statistics ship (Design Choice 1 options A and B).
 
 </details>
 
@@ -162,6 +162,25 @@ The plan adds a selection step to the #269 engine (`WarmingSelector`), the optio
 
 - **Class:** Trivial
 - **Settled by:** the `ArgumentOutOfRangeException` setter convention of the #269 plan (Design Choice 7, AGENTS.md section 9 guard-test convention), the documented DI behavior that `IEnumerable<T>` resolves in registration order, and the issue's own Test Matrix row "BenchmarkTests: the counter sits on the hit path: benchmark it". Holds under every option of Design Choices 1 to 4.
+
+</details>
+
+<details>
+<summary><strong>8. Statistics are recorded only when they are read</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The default `IWarmingAccessStatistics` is registered, and therefore hits are recorded, only when warming is enabled and the selection is `AccessPattern` (the `WarmingStrategy` value under Design Choice 3 option A); PR 2 and PR 3 register it whenever warming is enabled until PR 4 introduces the value and narrows the condition** | Pay for what you use; no hit-path cost for `All` and `TopHeavy` | A short interim in which a warming-enabled application records hits nothing reads (its cost is the one benchmarked in PR 3) |
+| **B) Always register and record when warming is enabled** | Statistics available for custom use | Hit-path cost with no reader for most configurations |
+
+### Chosen Option: **A - register and record only for AccessPattern**
+
+### Rationale
+
+- **Class:** Settled
+- **Settled by:** AGENTS.md section 1 ("pay-for-what-you-use (every feature opt-in)") and section 3 (patterns optional and disabled by default); only option A complies once PR 4 has merged. It applies when statistics ship (Design Choice 1 options A and B).
 
 </details>
 
@@ -235,28 +254,29 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 10 files:
+PR 2 holds exactly these 11 files:
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Abstractions/IWarmingAccessStatistics.cs` | new |
 | 2 | `src/Encina.Caching/Warming/WarmingAccessStatistics.cs` | new (internal sealed) |
-| 3 | `src/Encina.Caching/Warming/WarmedRequestType.cs` | new (internal sealed record) |
+| 3 | `src/Encina.Caching/Warming/WarmedRequestType.cs` | new (internal interface `IWarmedRequestType { Type RequestType { get; } }` and internal sealed `WarmedRequestType<TRequest>`) |
 | 4 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (`AddEncinaRequestCacheWarmer` adds the descriptor; `AddEncinaCaching` registers the statistics with `TryAddSingleton` only when `EnableCacheWarming` is true) |
 | 5 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 6 | `tests/Encina.UnitTests/Caching/WarmingAccessStatisticsTests.cs` | new |
 | 7 | `tests/Encina.ContractTests/Caching/WarmingAccessStatisticsContractTests.cs` | new |
-| 8 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (`ValidateOnBuild` and `ValidateScopes`; an application registration wins) |
-| 9 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
-| 10 | `changelog.d/4397-cache-warming-access-statistics.added.md` | new (`mechanical-fixer`) |
+| 8 | `tests/Encina.GuardTests/Infrastructure/Caching/WarmingAccessStatisticsGuardTests.cs` | new |
+| 9 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (`ValidateOnBuild` and `ValidateScopes`; an application registration wins; two request warmers) |
+| 10 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
+| 11 | `changelog.d/4397-cache-warming-access-statistics.added.md` | new (`mechanical-fixer`) |
 
 This PR exists only under Design Choice 1 options A and B; under C it is dropped with PR 3 and PR 4.
 
 Tasks:
 
-1. **Create** `public interface IWarmingAccessStatistics { void RecordHit(Type requestType); long GetHits(Type requestType); }` (XML docs with an example of a persisted replacement) and the internal `WarmedRequestType(Type RequestType)` descriptor. `WarmingAccessStatistics(IEnumerable<WarmedRequestType> types)` builds a read-only dictionary `Type -> long[1]` once (frozen set); `RecordHit` ignores a type outside the set and otherwise calls `Interlocked.Increment` on the slot; `GetHits` reads with `Volatile.Read` and returns 0 for an unknown type; null arguments throw `ArgumentNullException`. Nothing but a type and a count is stored, so no tenant, user or key can leak.
-2. **Registration** (pay-for-what-you-use): `AddEncinaRequestCacheWarmer` adds `TryAddEnumerable(ServiceDescriptor.Singleton(new WarmedRequestType(typeof(TRequest))))`; `AddEncinaCaching` registers `IWarmingAccessStatistics` (`TryAddSingleton`, so a registration made before or after by the application wins) only when `EnableCacheWarming` is true. The DI test proves it builds with both validations and that a user registration replaces the default in either order.
-3. **Tests (unit):** counts per type, unknown types ignored, concurrency (many threads, exact total), `GetHits` of an unknown type is 0. **Contract tests** instantiate the real `WarmingAccessStatistics` through the interface and assert the contract any implementation must keep (recorded hits are readable, an unknown type reads 0, null throws), plus a second small implementation in the test to show the seam. Guard: the class is internal and `Encina.Caching` has no `InternalsVisibleTo` for `Encina.GuardTests` (#269 Phase 4); the null checks are asserted in the contract tests and the manifest reason says so.
+1. **Create** `public interface IWarmingAccessStatistics { void RecordHit(Type requestType); long GetHits(Type requestType); }` (XML docs with an example of a persisted replacement) and the internal descriptor pair `IWarmedRequestType` / `WarmedRequestType<TRequest>`. `WarmingAccessStatistics(IEnumerable<IWarmedRequestType> types)` builds a read-only dictionary `Type -> long[1]` once (frozen set); `RecordHit` ignores a type outside the set and otherwise calls `Interlocked.Increment` on the slot; `GetHits` reads with `Volatile.Read` and returns 0 for an unknown type; null arguments throw `ArgumentNullException`. Nothing but a type and a count is stored, so no tenant, user or key can leak.
+2. **Registration:** `AddEncinaRequestCacheWarmer<TRequest, ...>` adds `TryAddEnumerable(ServiceDescriptor.Singleton<IWarmedRequestType, WarmedRequestType<TRequest>>())`: the service type (`IWarmedRequestType`) differs from the implementation type, so `TryAddEnumerable` does not throw (the trap recorded in the #269 plan for descriptors whose implementation type equals the service type), and each closed `WarmedRequestType<TRequest>` is a distinct implementation, so two request warmers both register and the same request twice registers once. `AddEncinaCaching` registers `IWarmingAccessStatistics` (`TryAddSingleton`, so a registration made before or after by the application wins) when `EnableCacheWarming` is true; PR 4 narrows this to `WarmingSelection == AccessPattern` once that value exists (Design Choice 8), so until PR 4 merges a warming-enabled application records hits at the cost measured by the PR 3 benchmark. The DI test proves it builds with both validations, that a user registration replaces the default in either order, and that TWO different request warmers yield a statistics object that counts both types.
+3. **Tests (unit):** counts per type, unknown types ignored, concurrency (many threads, exact total), `GetHits` of an unknown type is 0. **Contract tests** instantiate the real `WarmingAccessStatistics` through the interface and assert the contract any implementation must keep (recorded hits are readable, an unknown type reads 0, null throws), plus a second small implementation in the test to show the seam. **Guard tests** (#3798): `WarmingAccessStatisticsGuardTests` resolves `IWarmingAccessStatistics` from a provider built with `AddEncinaCaching` (warming enabled, one request warmer registered) and asserts that `RecordHit(null)` and `GetHits(null)` throw `ArgumentNullException`: the internal class is reached through the public interface, so no `InternalsVisibleTo` is needed.
 
 </details>
 
@@ -341,7 +361,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 4 holds exactly these 12 files:
+PR 4 holds exactly these 14 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -357,13 +377,15 @@ PR 4 holds exactly these 12 files:
 | 10 | `docs/features/handler-caching.md` | modify (`docs-writer`: AccessPattern, the cold-start limit) |
 | 11 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 12 | `changelog.d/4397-cache-warming-access-pattern.added.md` | new (`mechanical-fixer`) |
+| 13 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (register the default statistics only when `WarmingSelection` is `AccessPattern`, Design Choice 8) |
+| 14 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (not registered for `All` and `TopHeavy`, registered for `AccessPattern`) |
 
 Tasks:
 
 1. **Selector:** `AccessPattern` scores each warmer with `IWarmingAccessStatistics.GetHits` of its request type (`warmer is IWarmerRequestType`); a custom `ICacheWarmer` scores 0; the order is hits descending, then `Priority` ascending, then registration order, and the same top-percent count as `TopHeavy` applies (Design Choice 2). When every candidate scores 0 (or no statistics service is registered) the order is the `TopHeavy` order and the engine logs EventId 495 once (Design Choice 4).
-2. **Engine:** resolves `IWarmingAccessStatistics?` from the planning scope with `GetService` (a missing service is the all-zero case) and passes it to the selector.
+2. **Engine:** resolves `IWarmingAccessStatistics?` from the planning scope with `GetService` (a missing service is the all-zero case) and passes it to the selector. `AddEncinaCaching` narrows the registration of the default statistics to `EnableCacheWarming` with `WarmingSelection == AccessPattern` (Design Choice 8), so `All` and `TopHeavy` record nothing.
 3. **Tests:** ranking by hits, ties by priority, a custom warmer ranks by priority below warmers with hits, the all-zero fallback logs 495 and equals the `TopHeavy` set, a registered replacement implementation is used, a statistics implementation that throws fails the run visibly and never silently falls back (the exception is caught and logged by the hosted service, AGENTS.md section 3), the report counts only warmers that ran.
-4. **Docs:** `docs-writer` extends the section with `AccessPattern`, the cold-start limit and how to register a persisted `IWarmingAccessStatistics`.
+4. **Docs:** the issue names `docs/features/query-caching.md` (the EF Core `QueryCacheInterceptor` page); the `[Cache]` handler page is `docs/features/handler-caching.md` (#269 Phase 3), so this plan deliberately deviates from the issue's file name in PR 1 and PR 4. `docs-writer` extends the section with `AccessPattern`, the cold-start limit and how to register a persisted `IWarmingAccessStatistics`.
 
 </details>
 
@@ -397,17 +419,19 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **No new `EncinaError`** (selection and statistics return values, never errors): no ADR-062 `ErrorCategory` applies. **EventIds** 494-495 only: 494 selection applied, 495 no access statistics yet (fallback). **Telemetry:** no new meter instrument; the counter `encina.cache.warming` of #269 keeps its outcomes (the unselected warmers are not part of the run). No tenant tag, because the statistics hold no tenant (ADR-054 D4; #4398 adds the tag per pair).
-2. **Coverage targets (per flag).** Each row is entered in the manifest of the PR that adds the file and its tests (#1762). Numbers quoted from `origin/main`: `Behaviors/QueryCachingPipelineBehavior.cs` unit 98, guard 20, contract 0 (this plan keeps all three); `Configuration/CachingOptions.cs` guard 85 and no other flag; `ServiceCollectionExtensions.cs` has no `targets` row on `main` (#269 PR 1 creates one; the worker reads the value on `main` when the PR merges). Targets of #269 files this plan touches: engine unit 95, request warmer unit 95 and integration 40, log file unit 90.
+2. **Coverage targets (per flag).** Each row is entered in the manifest of the PR that adds the file and its tests (#1762). Numbers quoted from `origin/main`: `Behaviors/QueryCachingPipelineBehavior.cs` unit 98, guard 20, contract 0 (this plan keeps all three); `Configuration/CachingOptions.cs` guard 85 and no other flag; `ServiceCollectionExtensions.cs` has no `targets` row on `main`. Targets set by the #269 plan (Phase 4) for the files this plan touches: `CachingOptions.cs` guard raised from 85 to 90, `ServiceCollectionExtensions.cs` unit 90 and guard 0, engine unit 95 and integration 0, request warmer unit 95 and integration 40, log file unit 90; the rows below restate those numbers.
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Warming/WarmingSelector.cs` (PR 1, PR 4) | 100 | 0 | 0 | 0 | Pure function, fully unit tested; internal without `InternalsVisibleTo` for the guard project |
 | `Configuration/WarmingSelection.cs`, `Abstractions/IWarmingAccessStatistics.cs`, `Warming/WarmedRequestType.cs`, `Warming/IWarmerRequestType.cs`, `Warming/CacheWarmingMarker.cs` | 0 | 0 | 0 | 0 | An enum, an interface, a record, an internal interface and a constant: no executable lines of their own |
-| `Warming/WarmingAccessStatistics.cs` (PR 2) | 95 | 0 | 80 | 0 | Counting, the frozen set and the concurrency test are unit tested; the contract flag runs the real class through the interface; internal, so the guard flag cannot reach it |
-| `Behaviors/QueryCachingPipelineBehavior.cs` (PR 3) | keeps 98 | keeps 20 | keeps 0 | 0 | The recording branch is unit tested; the optional parameter is one more argument-less path |
-| `Warming/RequestCacheWarmer.cs`, `Warming/CacheWarmingService.cs`, `Diagnostics/CachePatternLog.Warming.cs` (PR 1, PR 3, PR 4) | keep the #269 values | 0 | 0 | keep | The selection and marker paths run in the existing unit tests of those files |
-| `Configuration/CachingOptions.cs` (PR 1) | no row | keeps 85 | 0 | 0 | One more validating setter, run by `CachingOptionsWarmingSelectionGuardTests` |
-| `ServiceCollectionExtensions.cs` (PR 1, PR 2) | raise only: at least the value on `main` when the PR merges | the value on `main` | 0 | 0 | Two more copy lines and one registration; never lowered (`target-ratchet`) |
+| `Warming/WarmingAccessStatistics.cs` (PR 2) | 95 | 25 | 80 | 0 | Counting, the frozen set and the concurrency test are unit tested; the contract flag runs the real class through the interface; the guard flag reaches the two argument checks through the public interface resolved from DI (`WarmingAccessStatisticsGuardTests`), about a quarter of the executable lines |
+| `Behaviors/QueryCachingPipelineBehavior.cs` (PR 3) | 98 | 20 | 0 | 0 | The recording branch is unit tested; the optional parameter adds no argument check, so the guard value stays 20 |
+| `Warming/RequestCacheWarmer.cs` (PR 3, PR 4) | 95 | 0 | 0 | 40 | The marker and the request-type members run in the existing unit tests of the file (#269 numbers) |
+| `Warming/CacheWarmingService.cs` (PR 1, PR 4) | 95 | 0 | 0 | 0 | The selection runs in the engine unit tests (#269 numbers; 35 integration only if #4396 PR 3 has merged) |
+| `Diagnostics/CachePatternLog.Warming.cs` (PR 1, PR 4) | 90 | 0 | 0 | 0 | Ids 494-495 run in the engine tests |
+| `Configuration/CachingOptions.cs` (PR 1) | no row | 90 | 0 | 0 | One more validating setter, run by `CachingOptionsWarmingSelectionGuardTests`; 90 is the #269 value |
+| `ServiceCollectionExtensions.cs` (PR 1, PR 2, PR 4) | 90 | 0 | 0 | 0 | Copy lines and registrations run by the DI tests with both validations; the numbers are #269's and are never lowered (`target-ratchet`) |
 
    No property test is written: the selector is a small deterministic function covered by unit cases; no integration test: the strategies change which warmers run, not what a cache provider stores, and the #269 Redis integration test already proves the fill.
 3. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching), `Encina.GuardTests`, and for PR 2 `Encina.ContractTests`; per-flag coverage and the CRAP table of changed methods (the selector stays below CRAP 10 by splitting ranking and counting).
@@ -468,11 +492,11 @@ REFERENCE FILES:
 
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
-| Production code | 7 | 16 | New: `WarmingSelection`, `WarmingSelector` (PR 1), `IWarmingAccessStatistics`, `WarmingAccessStatistics`, `WarmedRequestType` (PR 2), `CacheWarmingMarker` (PR 3), `IWarmerRequestType` (PR 4); modified once per PR that edits it: options, DI (PR 1, PR 2), engine (PR 1, PR 4), request warmer (PR 3, PR 4), behavior (PR 3), log file (PR 1, PR 4), `WarmingSelection` and `WarmingSelector` (PR 4), `PublicAPI.Unshipped.txt` (PR 1 to PR 4) |
-| Tests | 5 | 8 | New: selector, options guard, statistics, contract and benchmark files; modified: options, engine (PR 1, PR 4), DI, behavior, request-warmer, behavior-guard, selector tests |
+| Production code | 7 | 17 | New: `WarmingSelection`, `WarmingSelector` (PR 1), `IWarmingAccessStatistics`, `WarmingAccessStatistics`, `WarmedRequestType` (PR 2), `CacheWarmingMarker` (PR 3), `IWarmerRequestType` (PR 4); modified once per PR that edits it: options, DI (PR 1, PR 2, PR 4), engine (PR 1, PR 4), request warmer (PR 3, PR 4), behavior (PR 3), log file (PR 1, PR 4), `WarmingSelection` and `WarmingSelector` (PR 4), `PublicAPI.Unshipped.txt` (PR 1 to PR 4) |
+| Tests | 6 | 9 | New: selector, options guard, statistics, statistics guard, contract and benchmark files; modified: options, engine (PR 1, PR 4), DI (PR 2, PR 4), behavior, request-warmer, behavior-guard, selector tests |
 | Documentation | 0 | 2 | `docs/features/handler-caching.md` in PR 1 and PR 4 |
 | Configuration | 4 | 4 | Four changelog fragments; four manifest rows (one per PR) |
-| **Total** | **16** | **30** | Counted per pull request entry: 46 entries in 4 pull requests of 14, 10, 10 and 12 files, each at most 15 files and 1500 lines |
+| **Total** | **17** | **32** | Counted per pull request entry: 49 entries in 4 pull requests of 14, 11, 10 and 14 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -535,7 +559,7 @@ REFERENCE FILES:
 | #269 PR 1 to PR 3 (engine, `RequestCacheWarmer`, options, `docs/features/handler-caching.md`) | Pending | PR 1 edits the engine and options; PR 4 needs `RequestCacheWarmer` |
 | #266 PR 3 (`CachePatternLog`, range 450-499) | Pending | Needed for the ids of PR 1 and PR 4 |
 | #266 PR 1 and PR 3 and #267 PR 3, #268, #271 PR 5 (edits of `QueryCachingPipelineBehavior`) | Pending | PR 3 rebases on them; the order is in the #267 plan |
-| #4396 and #4398 | Independent | No type of either is used here |
+| #4396 and #4398 | No shared type | No type of either is used here; #4398 PR 2 also edits `RequestCacheWarmer.cs` and `CacheWarmingService.cs` (the tenant of each dispatched context), so this plan's PR 3 and PR 4 rebase on it if it merged first |
 | Maintainer answers to Design Choices 1 to 4 | Pending | Asked when work starts |
 
 ---
