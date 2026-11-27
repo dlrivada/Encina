@@ -60,7 +60,7 @@ internal sealed class MongoMigrationExecutor : IMigrationExecutor
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                MigrationErrorCodes.MigrationFailed,
+                MigrationErrorCodes.MigrationFailed, ErrorCategory.Internal,
                 $"Failed to execute command on shard '{shardInfo.ShardId}': {ex.Message}",
                 ex);
         }
