@@ -177,7 +177,7 @@ A wins for "the same handler as pull" (the issue); B wins when the handler needs
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `Audience` and at least one `AllowedServiceAccounts` entry are required; startup validation fails (`ValidateOnStart`) when either is empty, and the verifier also requires `email_verified`** | No configuration validates every Google token | Two options to set |
+| **A) `Audience` and at least one `AllowedServiceAccounts` entry are required; validation fails at startup when `Map` runs (Design Choice 10; the defaults template is not validated on its own) when either is empty, and the verifier also requires `email_verified`** | No configuration validates every Google token | Two options to set |
 | **B) Optional audience and account list** | Fewer options | A missing audience validates any Google-signed token for any audience |
 
 ### Chosen Option: **A, mandatory**
@@ -247,7 +247,7 @@ Registration completeness requires every option type and dependency a service re
 
 ### Rationale
 
-Pub/Sub documents a 10 MB maximum message size (named comparable product), and an unbounded read is excluded by the fail-closed rule for a security endpoint (AGENTS.md section 3).
+Pub/Sub documents a 10 MB maximum message size (https://cloud.google.com/pubsub/quotas; named comparable product); the 16 MiB default is derived from it (base64 inflates 10 MB to about 13.4 MB, plus the envelope), and an unbounded read is excluded by the fail-closed rule for a security endpoint (AGENTS.md section 3).
 
 **Class:** Settled
 **Settled by:** Google Cloud Pub/Sub quota documentation (10 MB message limit) and AGENTS.md section 3
@@ -290,7 +290,8 @@ REFERENCE FILES: src/Encina.Tenancy.AspNetCore/, docs/plans for #237 (options an
 1. Internal `IPushTokenVerifier.VerifyAsync(string? authorizationHeader, EncinaGoogleCloudPubSubPushOptions endpointOptions, CancellationToken)` returning `Either<EncinaError, PushPrincipal>` and `GoogleJwtPushTokenVerifier` (singleton, stateless, `TimeProvider`; the options of the calling endpoint are passed on each call, Design Choice 10): parses `Bearer <jwt>` (missing or not Bearer: `GOOGLEPUBSUB_PUSH_TOKEN_MISSING`), calls `GoogleJsonWebSignature.ValidateAsync` with `Audience` from the options, `Clock` from an internal `TimeProviderClock : IClock`, and the tolerances from `ClockSkew`; `InvalidJwtException` becomes `GOOGLEPUBSUB_PUSH_TOKEN_INVALID`; any other exception (network, certificate fetch) becomes `GOOGLEPUBSUB_PUSH_VERIFIER_UNAVAILABLE`; then requires `Payload.EmailVerified` and the email in `AllowedServiceAccounts` (ordinal, ignoring case), else `GOOGLEPUBSUB_PUSH_PRINCIPAL_DENIED`. The static library call sits behind an internal delegate so unit tests substitute it. `ValidateAsync` takes no `CancellationToken`: the call is awaited with `.WaitAsync(cancellationToken)`, so a request abort propagates as `OperationCanceledException` (the library work may finish in the background and its result is discarded). The issuer check (Google's issuers) and the accepted signature algorithms are the library's defaults; the verifier tests prove it with tokens signed with `alg=none` and HS256, which must be rejected as invalid. A missing `Authorization` header is `Unauthenticated` (R6, no identity), which takes precedence over R3's "missing header is InvalidRequest". The token and the header are never logged.
 2. Codes in `GoogleCloudPubSubPushErrorCodes.cs` (ADR-062): `..._TOKEN_MISSING` and `..._TOKEN_INVALID` `Unauthenticated` (R6, no identity); `..._PRINCIPAL_DENIED` `Forbidden` (R6; `Unauthenticated` if D3 is answered B); `..._VERIFIER_UNAVAILABLE` `Unavailable` (R7); constant messages; `OperationCanceledException` propagates.
 3. `Log.cs` 40688 (request rejected: error code and category only, level Information so unauthenticated traffic cannot flood Warning) and 40689 (handler failed, added in pull request 3); the two ids are the last two of `EventIdRanges.GoogleCloudPubSub` (40680-40689), which #237's plan keeps for its own health and loop faults (line 450 of its plan); they are proposed here only if #237's plan is amended to release them, otherwise the ids are to be assigned by the orchestrator. Either way the `AssemblyRanges` entry of `EncinaEventIdAllocationTests.cs` maps `Encina.GoogleCloudPubSub.AspNetCore` to the range's field. DI edit (`TryAddSingleton<IPushTokenVerifier, GoogleJwtPushTokenVerifier>`) with the resolution test.
-4. Tests: `GoogleJwtPushTokenVerifierTests` (missing, malformed, invalid, `alg=none`, HS256, unavailable, unverified email, other email, allowed email, tolerance and clock from a `FakeTimeProvider`), `TimeProviderClockTests`, DI test edit, manifest edit. 10 files, by name: verifier (with `IPushTokenVerifier` and `PushPrincipal`), `TimeProviderClock`, error codes, `Log`, allocation test, DI edit, DI test edit, verifier test, clock test, manifest.
+4. Algorithm tests: `GoogleJwtPushTokenVerifierAlgorithmTests` build tokens with `alg=none` and HS256 and call the real `GoogleJsonWebSignature.ValidateAsync`, never the replaceable stand-in, and assert `TOKEN_INVALID`. Whether the library rejects the algorithm before it fetches keys cannot be read from its XML documentation, which lists only the RS256 and ES256 certificate sources; the first run of these tests decides: if no network call happens they stay unit tests, and if one does they move to the integration flag against a stubbed certificate endpoint. A substituted stand-in would make them pass without testing anything.
+5. Tests: `GoogleJwtPushTokenVerifierTests` (missing, malformed, invalid, unavailable, unverified email, other email, allowed email, tolerance and clock from a `FakeTimeProvider`), `TimeProviderClockTests`, DI test edit, manifest edit. 10 files, by name: verifier (with `IPushTokenVerifier` and `PushPrincipal`), `TimeProviderClock`, error codes, `Log`, allocation test, DI edit, DI test edit, verifier test, clock test, manifest.
 
 </details>
 
@@ -447,8 +448,10 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, ch
 |----------|------:|-------|
 | Production code | 12 | csproj, options, validator, DI, verifier, clock, codes, `Log`, envelope, reader, telemetry, endpoint |
 | Tests | 16 | options, validator, DI, verifier, clock, reader, property, endpoint, telemetry, guard, probe, integration, conformance, 3 csproj edits |
-| Shared edits | 7 | `Encina.slnx`, `Directory.Packages.props`, 2 test csproj, `ContractTests.csproj`, `IntegrationTests.csproj`, allocation test |
+| Shared edits | 10 | `Encina.slnx`, `Directory.Packages.props`, 3 test csproj (`UnitTests`, `GuardTests`, `PropertyTests`), `ContractTests.csproj`, `IntegrationTests.csproj`, the transport csproj, allocation test, fixture |
 | Documentation and manifests | 8 | README, feature page, changelog, 2 justification files, 2 PublicAPI files, manifest |
+
+The categories count 46 distinct files (the test csproj edits sit in Shared edits only); the pull-request rows total 52 because six files are edited in more than one pull request (the manifest in four, error codes, `Log`, and the DI test in two each).
 | **Pull request 1** | **15** | about 600 lines |
 | **Pull request 2** | **10** | about 500 lines |
 | **Pull request 3** | **15** | about 1000 lines |
@@ -467,7 +470,7 @@ Implementers and callers: all types are new, so there are no implementers or `ne
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). #237 provides the Pub/Sub pull transport.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options (audience and allowed accounts mandatory), DI; PR2 token verifier over GoogleJsonWebSignature behind a seam, codes, log 40688; PR3 envelope reader, endpoint mapping, status mapper, telemetry, log 40689; PR4 emulator probe, integration and conformance tests; PR5 documentation. Dilemmas D1 to D5 and D7 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options (audience and allowed accounts mandatory), DI; PR2 token verifier over GoogleJsonWebSignature behind a seam, codes, log 40688; PR3 envelope reader, endpoint mapping, telemetry, log 40689; PR4 emulator probe, integration and conformance tests; PR5 documentation. Dilemmas D1 to D5 and D7 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: fail closed (any Left dispatches nothing); verify before reading the body; no token, email, payload or exception message in logs; named ADR-062 category on every error; TimeProvider through ValidationSettings.Clock; cancellation never a Left; targets never go down; CRAP <= 10.
 
