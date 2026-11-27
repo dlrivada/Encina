@@ -35,15 +35,6 @@ namespace Encina.Testing.Pact;
 /// </remarks>
 public sealed class EncinaPactConsumerBuilder : IDisposable
 {
-    // Error code prefixes for HTTP status mapping
-    private const string ErrorPrefixValidation = "encina.validation";
-    private const string ErrorPrefixAuthorization = "encina.authorization";
-    private const string ErrorPrefixAuthentication = "encina.authentication";
-    private const string ErrorPrefixNotFound = "encina.notfound";
-    private const string ErrorPrefixConflict = "encina.conflict";
-    private const string ErrorPrefixTimeout = "encina.timeout";
-    private const string ErrorPrefixRateLimit = "encina.ratelimit";
-
     private readonly IPactBuilderV4 _pactBuilder;
     private readonly List<PactInteraction> _interactions = [];
     private readonly object _configurationLock = new();
@@ -452,22 +443,9 @@ public sealed class EncinaPactConsumerBuilder : IDisposable
             ErrorMessage: error.Message);
     }
 
-    private static HttpStatusCode MapErrorToStatusCode(EncinaError error)
-    {
-        var code = error.GetCode().IfNone("encina.unknown");
-
-        return code switch
-        {
-            var c when c.StartsWith(ErrorPrefixValidation, StringComparison.OrdinalIgnoreCase) => HttpStatusCode.BadRequest,
-            var c when c.StartsWith(ErrorPrefixAuthorization, StringComparison.OrdinalIgnoreCase) => HttpStatusCode.Forbidden,
-            var c when c.StartsWith(ErrorPrefixAuthentication, StringComparison.OrdinalIgnoreCase) => HttpStatusCode.Unauthorized,
-            var c when c.StartsWith(ErrorPrefixNotFound, StringComparison.OrdinalIgnoreCase) => HttpStatusCode.NotFound,
-            var c when c.StartsWith(ErrorPrefixConflict, StringComparison.OrdinalIgnoreCase) => HttpStatusCode.Conflict,
-            var c when c.StartsWith(ErrorPrefixTimeout, StringComparison.OrdinalIgnoreCase) => HttpStatusCode.RequestTimeout,
-            var c when c.StartsWith(ErrorPrefixRateLimit, StringComparison.OrdinalIgnoreCase) => HttpStatusCode.TooManyRequests,
-            _ => HttpStatusCode.InternalServerError
-        };
-    }
+    // The status is the HTTP column of the error category contract (ADR-062), never a code prefix.
+    private static HttpStatusCode MapErrorToStatusCode(EncinaError error) =>
+        (HttpStatusCode)ErrorCategoryHttp.GetStatusCode(error);
 
     private sealed record PactInteraction(
         string Description,

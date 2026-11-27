@@ -1,0 +1,1 @@
+- `Encina.Testing.Pact` maps an error to its HTTP status by its `ErrorCategory` (single table shared with the hosts) instead of by an `encina.*` code prefix; a Timeout is now 504 instead of 408, and an error with a package-specific code and an explicit category now gets the status of its category (#1922).
