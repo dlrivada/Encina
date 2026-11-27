@@ -163,7 +163,7 @@ public sealed class ShardedReadWriteDbContextFactory<TContext> : IShardedReadWri
                 ? Either<EncinaError, string>.Right(shard.ConnectionString)
                 : Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.NoReplicasConfigured,
+                        ShardingErrorCodes.NoReplicasConfigured, ErrorCategory.Internal,
                         $"Shard '{shard.ShardId}' has no read replicas configured."));
         }
 
@@ -176,7 +176,7 @@ public sealed class ShardedReadWriteDbContextFactory<TContext> : IShardedReadWri
                 ? Either<EncinaError, string>.Right(shard.ConnectionString)
                 : Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.AllReplicasUnhealthy,
+                        ShardingErrorCodes.AllReplicasUnhealthy, ErrorCategory.Unavailable,
                         $"All replicas for shard '{shard.ShardId}' are currently unhealthy."));
         }
 
