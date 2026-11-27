@@ -219,9 +219,24 @@ public sealed class EfCoreShardingErrorCategoryTests : IDisposable
     }
 
     [Fact]
-    public async Task CompareAsync_SameModel_ReturnsDiff()
+    public async Task CompareAsync_NonRelationalModel_IsInternal()
     {
+        // The in-memory provider has no relational model: reading the table name throws.
         var introspector = new EfCoreSchemaIntrospector<ShardTestDbContext>(InMemoryFactory());
+
+        var result = await introspector.CompareAsync(Shard("shard-0"), Shard("shard-1"), includeColumnDiffs: true);
+
+        AssertInternal(result, MigrationErrorCodes.SchemaComparisonFailed);
+    }
+
+    [Fact]
+    public async Task CompareAsync_RelationalModel_ReturnsDiff()
+    {
+        var factory = Substitute.For<IShardedDbContextFactory<ShardTestDbContext>>();
+        factory.CreateContextForShard(Arg.Any<string>())
+            .Returns(_ => (Either<EncinaError, ShardTestDbContext>)new ShardTestDbContext(
+                new DbContextOptionsBuilder<ShardTestDbContext>().UseSqlite("DataSource=:memory:").Options));
+        var introspector = new EfCoreSchemaIntrospector<ShardTestDbContext>(factory);
 
         var result = await introspector.CompareAsync(Shard("shard-0"), Shard("shard-1"), includeColumnDiffs: true);
 
