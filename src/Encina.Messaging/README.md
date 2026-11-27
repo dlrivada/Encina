@@ -133,10 +133,10 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 A value outside the valid range throws `ArgumentOutOfRangeException` when you set it, so a misconfiguration fails at configuration time.
 
 - **Schedule**: one cycle after a random start-up pause (1 ms to 30 s), then one every `PurgeInterval`.
-- **Cycle**: deletes expired processed messages through `IInboxStore` in batches of `PurgeBatchSize` until a batch comes back shorter than the batch size. If the store returns only ids that the cycle already tried to remove, the cycle ends with a warning (EventId 2112, no progress) and the next interval runs normally.
+- **Cycle**: deletes expired processed messages through `IInboxStore` in batches of `PurgeBatchSize` until a batch comes back shorter than the batch size. If the store returns only ids that the cycle already tried to remove, the cycle ends with a warning (EventId 10912, no progress) and the next interval runs normally.
 - **Scope**: no distributed lock, because the deletes are bounded and idempotent, so several hosts may run the purge at the same time. There is no tenant filter: the purge covers the whole deployment. It does not depend on any processor being enabled.
-- **Failures**: a `Left` from the store or an exception fails that cycle only. It is logged by error code (EventId 2110) or by exception type (EventId 2111), never by message text, and counted in `encina.messaging.purge.cycle_failures_total` (dimensions `pattern` and `error_code`, which carries the exception type name for an exception) on the `Encina` meter. The next cycle still runs. Deleted rows are counted in `encina.messaging.purge.messages_deleted_total` (dimension `pattern`).
-- **Log events** (range 2100-2199, `EventIdRanges.MessagingInbox`): 2107 loop started, 2108 nothing to purge, 2109 messages purged in a cycle, 2110 cycle failed with an error code, 2111 cycle threw an exception, 2112 no progress.
+- **Failures**: a `Left` from the store or an exception fails that cycle only. It is logged by error code (EventId 10910) or by exception type (EventId 10911), never by message text, and counted in `encina.messaging.purge.cycle_failures_total` (dimensions `pattern` and `error_code`, which carries the exception type name for an exception) on the `Encina` meter. The next cycle still runs. Deleted rows are counted in `encina.messaging.purge.messages_deleted_total` (dimension `pattern`).
+- **Log events** (range 10900-10999, `EventIdRanges.MessagingInbox`): 10907 loop started, 10908 nothing to purge, 10909 messages purged in a cycle, 10910 cycle failed with an error code, 10911 cycle threw an exception, 10912 no progress.
 
 Reference: [Inbox Pattern](../../docs/messaging/inbox.md#purge-of-processed-messages).
 

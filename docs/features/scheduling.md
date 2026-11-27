@@ -107,16 +107,16 @@ services.AddScoped<IScheduledMessageDispatcher, MyCustomDispatcher>();
 
 ### Structured Logging
 
-EventIds 2320-2325 (`SchedulingProcessorLog`):
+EventIds 11120-11125 (`SchedulingProcessorLog`):
 
 | EventId | Level | Message |
 |---------|-------|---------|
-| 2320 | Information | Processor starting (interval, batchSize, maxRetries) |
-| 2321 | Information | Processor stopping |
-| 2322 | Information | Processor disabled |
-| 2323 | Debug | Batch completed (processedCount) |
-| 2324 | Warning | Batch failed (errorCode, errorMessage) |
-| 2325 | Error | Cycle threw unhandled exception |
+| 11120 | Information | Processor starting (interval, batchSize, maxRetries) |
+| 11121 | Information | Processor stopping |
+| 11122 | Information | Processor disabled |
+| 11123 | Debug | Batch completed (processedCount) |
+| 11124 | Warning | Batch failed (errorCode, errorMessage) |
+| 11125 | Error | Cycle threw unhandled exception |
 
 ### OpenTelemetry
 

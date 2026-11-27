@@ -313,6 +313,38 @@ public sealed class StreamingShouldlyExtensionsTests
 
     #endregion
 
+    #region ShouldContainValidationErrorForAsync Tests
+
+    [Fact]
+    public async Task ShouldContainValidationErrorForAsync_WhenValidationCategoryWithPackageSpecificCode_ReturnsError()
+    {
+        // Arrange
+        var validation = EncinaErrors.Create("consent.invalid_purpose", ErrorCategory.Validation, "Email is invalid");
+        var stream = CreateStream(
+            Either<EncinaError, int>.Left(EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "Email missing")),
+            Either<EncinaError, int>.Left(validation));
+
+        // Act
+        var error = await stream.ShouldContainValidationErrorForAsync("Email");
+
+        // Assert
+        error.ShouldBe(validation);
+    }
+
+    [Fact]
+    public async Task ShouldContainValidationErrorForAsync_WhenOnlyOtherCategoryMentionsProperty_Throws()
+    {
+        // Arrange
+        var stream = CreateStream(
+            Either<EncinaError, int>.Left(EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "Email missing")));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ShouldAssertException>(
+            async () => await stream.ShouldContainValidationErrorForAsync("Email"));
+    }
+
+    #endregion
+
     #region Helpers
 
     private static async IAsyncEnumerable<Either<TLeft, TRight>> CreateStream<TLeft, TRight>(

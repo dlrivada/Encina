@@ -8,7 +8,7 @@ namespace Encina.Messaging.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 2100-2199 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 10900-10999 range to avoid collisions with other Encina modules.
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -20,7 +20,7 @@ public static partial class InboxStoreLog
 {
     /// <summary>Logs when checking the inbox for a duplicate message.</summary>
     [LoggerMessage(
-        EventId = 2100,
+        EventId = 10900,
         Level = LogLevel.Debug,
         Message = "Checking inbox for duplicate message {MessageId}")]
     public static partial void CheckingForDuplicate(
@@ -29,7 +29,7 @@ public static partial class InboxStoreLog
 
     /// <summary>Logs when a duplicate message is detected in the inbox.</summary>
     [LoggerMessage(
-        EventId = 2101,
+        EventId = 10901,
         Level = LogLevel.Debug,
         Message = "Duplicate message {MessageId} detected in inbox")]
     public static partial void DuplicateDetected(
@@ -38,7 +38,7 @@ public static partial class InboxStoreLog
 
     /// <summary>Logs when a message is being added to the inbox.</summary>
     [LoggerMessage(
-        EventId = 2102,
+        EventId = 10902,
         Level = LogLevel.Debug,
         Message = "Adding message {MessageId} to inbox ({MessageType})")]
     public static partial void AddingMessage(
@@ -48,7 +48,7 @@ public static partial class InboxStoreLog
 
     /// <summary>Logs when a message has been successfully added to the inbox.</summary>
     [LoggerMessage(
-        EventId = 2103,
+        EventId = 10903,
         Level = LogLevel.Debug,
         Message = "Inbox message {MessageId} added")]
     public static partial void MessageAdded(
@@ -57,7 +57,7 @@ public static partial class InboxStoreLog
 
     /// <summary>Logs when marking an inbox message as processed.</summary>
     [LoggerMessage(
-        EventId = 2104,
+        EventId = 10904,
         Level = LogLevel.Debug,
         Message = "Marking inbox message {MessageId} as processed")]
     public static partial void MarkingMessageAsProcessed(
@@ -66,7 +66,7 @@ public static partial class InboxStoreLog
 
     /// <summary>Logs when an inbox store operation fails with a domain error.</summary>
     [LoggerMessage(
-        EventId = 2105,
+        EventId = 10905,
         Level = LogLevel.Warning,
         Message = "Inbox store operation failed: {ErrorMessage}")]
     public static partial void OperationFailed(
@@ -75,7 +75,7 @@ public static partial class InboxStoreLog
 
     /// <summary>Logs when an inbox store operation throws an unexpected exception.</summary>
     [LoggerMessage(
-        EventId = 2106,
+        EventId = 10906,
         Level = LogLevel.Error,
         Message = "Inbox store operation threw an unexpected exception")]
     public static partial void OperationException(

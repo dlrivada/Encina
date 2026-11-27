@@ -8,7 +8,7 @@ namespace Encina.Messaging.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 2300-2399 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 11100-11199 range to avoid collisions with other Encina modules.
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -20,7 +20,7 @@ public static partial class SchedulingStoreLog
 {
     /// <summary>Logs when scheduling a message for future execution.</summary>
     [LoggerMessage(
-        EventId = 2300,
+        EventId = 11100,
         Level = LogLevel.Debug,
         Message = "Scheduling message {MessageId} ({MessageType}) for {ScheduledAtUtc}")]
     public static partial void SchedulingMessage(
@@ -31,7 +31,7 @@ public static partial class SchedulingStoreLog
 
     /// <summary>Logs when a scheduled message has been created.</summary>
     [LoggerMessage(
-        EventId = 2301,
+        EventId = 11101,
         Level = LogLevel.Debug,
         Message = "Scheduled message {MessageId} created")]
     public static partial void MessageCreated(
@@ -40,7 +40,7 @@ public static partial class SchedulingStoreLog
 
     /// <summary>Logs when fetching due scheduled messages.</summary>
     [LoggerMessage(
-        EventId = 2302,
+        EventId = 11102,
         Level = LogLevel.Debug,
         Message = "Fetching due scheduled messages")]
     public static partial void FetchingDueMessages(
@@ -48,7 +48,7 @@ public static partial class SchedulingStoreLog
 
     /// <summary>Logs when due scheduled messages have been fetched.</summary>
     [LoggerMessage(
-        EventId = 2303,
+        EventId = 11103,
         Level = LogLevel.Debug,
         Message = "Fetched {Count} due scheduled messages")]
     public static partial void FetchedDueMessages(
@@ -57,7 +57,7 @@ public static partial class SchedulingStoreLog
 
     /// <summary>Logs when marking a scheduled message as executed.</summary>
     [LoggerMessage(
-        EventId = 2304,
+        EventId = 11104,
         Level = LogLevel.Debug,
         Message = "Marking scheduled message {MessageId} as executed")]
     public static partial void MarkingMessageAsExecuted(
@@ -66,7 +66,7 @@ public static partial class SchedulingStoreLog
 
     /// <summary>Logs when a scheduling store operation fails with a domain error.</summary>
     [LoggerMessage(
-        EventId = 2305,
+        EventId = 11105,
         Level = LogLevel.Warning,
         Message = "Scheduling store operation failed: {ErrorMessage}")]
     public static partial void OperationFailed(
@@ -75,7 +75,7 @@ public static partial class SchedulingStoreLog
 
     /// <summary>Logs when a scheduling store operation throws an unexpected exception.</summary>
     [LoggerMessage(
-        EventId = 2306,
+        EventId = 11106,
         Level = LogLevel.Error,
         Message = "Scheduling store operation threw an unexpected exception")]
     public static partial void OperationException(

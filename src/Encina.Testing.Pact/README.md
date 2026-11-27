@@ -73,7 +73,7 @@ public class OrderServiceConsumerTests : IClassFixture<EncinaPactFixture>
         var consumer = _fixture.CreateConsumer("WebApp", "OrdersAPI")
             .WithCommandFailureExpectation<CreateOrderCommand, OrderDto>(
                 new CreateOrderCommand(Guid.Empty, ""),
-                EncinaErrors.Create("encina.validation.failed", "Order ID is required"),
+                EncinaErrors.Validation("Order ID is required"),
                 description: "Create order with invalid data");
 
         await consumer.VerifyAsync(async uri =>
@@ -207,20 +207,32 @@ var notifResponse = await client.PublishNotificationAsync(notification);
 var result = await response.ReadAsEitherAsync<MyResponse>();
 ```
 
-## Error Code Mapping
+## Error Category Mapping
 
-Encina error codes are automatically mapped to HTTP status codes:
+An `EncinaError` is mapped to an HTTP status by its `ErrorCategory`, through `ErrorCategoryHttp.GetStatusCode` ([ADR-062](../../docs/architecture/adr/062-error-category-contract.md)):
 
-| Error Code Prefix | HTTP Status |
-|-------------------|-------------|
-| `encina.validation` | 400 Bad Request |
-| `encina.authorization` | 403 Forbidden |
-| `encina.authentication` | 401 Unauthorized |
-| `encina.notfound` | 404 Not Found |
-| `encina.conflict` | 409 Conflict |
-| `encina.timeout` | 408 Request Timeout |
-| `encina.ratelimit` | 429 Too Many Requests |
-| Other | 500 Internal Server Error |
+| ErrorCategory | HTTP Status |
+|---------------|-------------|
+| `Validation` | 400 |
+| `InvalidRequest` | 400 |
+| `Unauthenticated` | 401 |
+| `Forbidden` | 403 |
+| `NotFound` | 404 |
+| `Conflict` | 409 |
+| `AlreadyExists` | 409 |
+| `FailedPrecondition` | 400 |
+| `RateLimited` | 429 |
+| `Unavailable` | 503 |
+| `Timeout` | 504 |
+| `UpstreamFailure` | 502 |
+| `Cancelled` | 499 |
+| `Internal` | 500 |
+
+The error code string is still written to the interaction body as `errorCode`, but it never decides the status. An error created without a category currently has its category inferred from the code text (for example a `.not_found` suffix gives `NotFound`) and is `Internal` (500) only when no rule matches; this inference is transitional, so declare the category when you create the error:
+
+```csharp
+EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "Order 42 was not found.");
+```
 
 ## Provider States
 
