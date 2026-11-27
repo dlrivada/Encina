@@ -76,7 +76,8 @@ public sealed class PactConsumerExamples : IDisposable
         var query = new GetOrderQuery(nonExistentId);
 
         var notFoundError = EncinaErrors.Create(
-            "encina.notfound.order",
+            "orders.not_found",
+            ErrorCategory.NotFound,
             $"Order {nonExistentId} not found");
 
         _consumer.WithQueryFailureExpectation<GetOrderQuery, OrderDto>(

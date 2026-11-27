@@ -738,22 +738,8 @@ public sealed class EncinaPactProviderVerifier : IDisposable
         return true;
     }
 
-    private static int MapErrorToStatusCode(EncinaError error)
-    {
-        var code = error.GetCode().IfNone("encina.unknown");
-
-        return code switch
-        {
-            var c when c.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase) => (int)HttpStatusCode.BadRequest,
-            var c when c.StartsWith("encina.notfound", StringComparison.OrdinalIgnoreCase) => (int)HttpStatusCode.NotFound,
-            var c when c.StartsWith("encina.authorization", StringComparison.OrdinalIgnoreCase) => (int)HttpStatusCode.Forbidden,
-            var c when c.StartsWith("encina.authentication", StringComparison.OrdinalIgnoreCase) => (int)HttpStatusCode.Unauthorized,
-            var c when c.StartsWith("encina.conflict", StringComparison.OrdinalIgnoreCase) => (int)HttpStatusCode.Conflict,
-            var c when c.StartsWith("encina.timeout", StringComparison.OrdinalIgnoreCase) => (int)HttpStatusCode.RequestTimeout,
-            var c when c.StartsWith("encina.ratelimit", StringComparison.OrdinalIgnoreCase) => (int)HttpStatusCode.TooManyRequests,
-            _ => (int)HttpStatusCode.InternalServerError
-        };
-    }
+    // The status is the HTTP column of the error category contract (ADR-062), never a code prefix.
+    private static int MapErrorToStatusCode(EncinaError error) => ErrorCategoryHttp.GetStatusCode(error);
 
     private static PactErrorResponse SerializeError(EncinaError error)
     {

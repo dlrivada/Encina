@@ -21,7 +21,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 25
+      },
+      "justifications": {
+        "unit": "The unit row is unmeasurable until issue #4534 lands, because this file is compiled into the Encina.UnitTests assembly and coverlet does not instrument the test assembly, so the 25 is an unmeasured placeholder covering the Either and Task overloads of the validation and not-found assertions, exercised by the nine tests of tests/Encina.UnitTests/Testing/TUnit/TUnitEitherAssertionsTests.cs."
+      }
     },
     "TUnitEitherCollectionAssertions.cs": {
       "defaultTests": [

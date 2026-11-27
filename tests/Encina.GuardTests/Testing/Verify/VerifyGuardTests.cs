@@ -166,7 +166,7 @@ public sealed class VerifyGuardTests
     [Fact]
     public void PrepareValidationError_ValidError_ReturnsObject()
     {
-        var error = EncinaErrors.Create("encina.validation.test", "validation failed");
+        var error = EncinaErrors.Validation("validation failed");
         var prepared = EncinaVerify.PrepareValidationError(error);
         prepared.ShouldNotBeNull();
     }
