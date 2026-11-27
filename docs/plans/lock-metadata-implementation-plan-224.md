@@ -3,7 +3,7 @@
 > **Issue**: [#224](https://github.com/dlrivada/Encina/issues/224)
 > **Type**: Feature
 > **Complexity**: High in breadth (a new member on two public interfaces, seven provider implementations, one storage design per backend); low in logic
-> **Estimated Scope**: ~800 lines of production code + ~1,500 lines of tests in the core and the three existing providers, plus one pull request per planned provider (about 6,900 lines over 12 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
+> **Estimated Scope**: ~800 lines of production code + ~1,500 lines of tests in the core and the three existing providers, plus one pull request per planned provider (about 7,300 lines over 12 numbered pull requests, PR 10 being split into 10a, 10b and 10c; the per-PR estimates in "Estimated File Count" sum to it)
 > **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027, DEC-009, AC-027; [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D3, D4, D6.3; [ADR-062](../architecture/adr/062-error-category-contract.md)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (ADR-052 implementation; open, not a pending maintainer decision); PRs 6 to 9 need the packages of [#207](https://github.com/dlrivada/Encina/issues/207), [#208](https://github.com/dlrivada/Encina/issues/208), [#209](https://github.com/dlrivada/Encina/issues/209), [#210](https://github.com/dlrivada/Encina/issues/210) (plans on main, not written); [#2405](https://github.com/dlrivada/Encina/issues/2405) (open bug: the SQL Server lock ignores its expiry, and provider-level `ExtendAsync` extends a lock it does not own) for the SQL Server stale-row rule
 > **Related**: family `lock-pipeline` (#220, #221, #223, #225); #218 (fencing token: also adds a member to `ILockHandle`), #724, #741, #226, #2653 (duplicate lock providers in the caching packages)
@@ -19,11 +19,11 @@ When a lock is stuck, the first question is "who holds it and doing what". Today
 3. **Handle.** `ILockHandle` gains `Owner`, `InstanceId` and `Metadata`.
 4. **Query.** `IDistributedLockProvider.GetLockInfoAsync(resource, ct)` returns `Either<EncinaError, Option<LockInfo>>`: a fault is `Left`, "not locked" is `Right(None)` (ADR-052 shape, not the issue's `LockInfo?`).
 5. **Storage.** Each backend stores the metadata beside the lock in its own way (Provider Matrix); a stale record never reports a lock that is no longer held (Design Choice 4).
-6. **Limits and privacy.** Bounded sizes; custom properties are application data and never reach logs, tags or telemetry (Design Choice 5).
+6. **Limits and privacy.** Bounded sizes; custom properties are application data and never reach logs, tags or telemetry (Design Choice 5); the numbers are Design Choice 7.
 
 **Standards**: ADR-052; ADR-054 D6.3 (no data-bearing names); ADR-062; `AGENTS.md` section 3 (ROP, async database calls with a `CancellationToken`, `EncinaError.Message` never logged), section 5 (all seven lock providers consistent) and section 6.
 
-**Affected packages**: `Encina.DistributedLock` (types, interfaces, defaults), `Encina.DistributedLock.InMemory`, `.Redis`, `.SqlServer`, the four planned packages (#207 to #210), `Encina` (EventId registration only when this plan is the first of the family with a log), and every other implementer of the two interfaces (table below); test projects `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.IntegrationTests`, `Encina.TestInfrastructure`.
+**Affected packages**: `Encina.DistributedLock` (types, interfaces, defaults), `Encina.DistributedLock.InMemory`, `.Redis`, `.SqlServer`, the four planned packages (#207 to #210), `Encina.MongoDB` (the lock provider of #609, PR 10b), `Encina` (EventId registration only when this plan is the first of the family with a log), and every other implementer of the two interfaces (table below); test projects `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.IntegrationTests`, `Encina.TestInfrastructure`.
 
 **Provider category**: Distributed locks (`AGENTS.md` section 5): all seven providers (InMemory, Redis, SQL Server, PostgreSQL, MySQL, Azure Blob, DynamoDB) implement it; the feature is complete for 1.0 only when contract tests cover all seven. Database (10) does not apply to the lock stores (the SQL schemas follow the SQL differences of `AGENTS.md` section 5).
 
@@ -38,17 +38,22 @@ When a lock is stuck, the first question is "who holds it and doing what". Today
 | | private `LockHandle` in `Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs:223` | exists | PR 4 |
 | | private `LockHandle` in `SqlServerDistributedLockProvider.cs:242` | exists | PR 5 |
 | | the handles of #207, #208, #209, #210 | not written | PRs 6 to 9, each after its package merged |
-| | the RedLock handle of #226 (extends the Redis package) | not written | the #226 PR that adds it, or PR 10 after it merged |
-| | `InstrumentedLockHandle` (#724), the auto-extend wrapper (#223), the fencing member of #218 lands in the same file | not written | PR 10 |
-| | the two caching packages' private `LockHandle` (`MemoryDistributedLockProvider.cs:222`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:208`) implement `IAsyncDisposable` only | exists | out of this interface until #2653 and #2667 move them to `ILockHandle`; PR 10 includes them if they implement it by then |
-| `IDistributedLockProvider` | `InMemoryDistributedLockProvider.cs:18`, `Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs:17`, `SqlServerDistributedLockProvider.cs:19` | exist | PRs 3, 4, 5 (public method on the class first) |
-| | `Encina.Caching.Memory/MemoryDistributedLockProvider.cs:21`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:17` | exist | PR 10, or removed by #2653 |
-| | the providers of #207 to #210, the RedLock provider of #226 | not written | PRs 6 to 9; #226's PR |
-| | the decorators of #724 (`InstrumentedDistributedLockProvider`), #741 (tenant scoping), #223 (`AutoExtendDistributedLockProvider`) | not written | PR 10 (they forward, #741 maps the scoped resource name back) |
+| | the RedLock handle of #226 (extends the Redis package) | not written | the #226 PR that adds it, or PR 10b after it merged |
+| | `InstrumentedLockHandle` (#724), the auto-extend wrapper (#223), the fencing member of #218 lands in the same file | not written | PR 10a |
+| | the two caching packages' private `LockHandle` (`MemoryDistributedLockProvider.cs:222`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:208`) implement `IAsyncDisposable` only | exists | out of this interface until #2653 and #2667 move them to `ILockHandle`; PR 10b includes them if they implement it by then |
+| `IDistributedLockProvider` | `Encina.DistributedLock.InMemory/InMemoryDistributedLockProvider.cs:18`, `Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs:17`, `SqlServerDistributedLockProvider.cs:19` | exist | PRs 3, 4, 5 (public method on the class first) |
+| | `Encina.Caching.Memory/MemoryDistributedLockProvider.cs:21`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:17` | exist | PR 10b, or removed by #2653 |
+| | the providers of #207 to #210, the RedLock provider of #226, the MongoDB provider of #609 | not written | PRs 6 to 9; #226's PR; PR 10b / #609's PR |
+
+The table comes from a declaration-form grep with multi-line primary constructors of `src/` and `tests/` on `origin/main` (eight classes, exactly the rows marked "exists": five providers and three private handles; no test class, fake or substitute implements either interface) plus the plans on `main` that declare implementers (`git grep -E ":\s*(IDistributedLockProvider|ILockHandle)" origin/main -- docs/plans`: #207 to #210, #609, #724, #218 (adds a member to `ILockHandle`), and the decorators named by #741, #223 and #226).
+| | the decorators of #724 (`InstrumentedDistributedLockProvider`), #741 (tenant scoping), #223 (`AutoExtendDistributedLockProvider`) | not written | PR 10a (they forward, #741 maps the scoped resource name back) |
+| `ILockHandle` and `IDistributedLockProvider` | `MongoDbDistributedLockProvider` and its private `LockHandle : ILockHandle` in `Encina.MongoDB/Locking/` (plan #609, merged on `main`, issue open; an eighth implementer outside the seven providers of SPEC-000 DEC-009) | not written | PR 10b stores owner, instance and metadata in the lock document and adds the members when #609 has merged; when #609 merges after PR 10c, its own PR adds them, and PR 10c checks the implementer list again before it opens |
+| | the tenant decorator's handle if it wraps one (#741) | not written | PR 10a |
 
 - Constructor sites of the three existing providers (an optional trailing `ILockMetadataProvider? metadataProvider = null` parameter, after the existing optional `TimeProvider? timeProvider = null`, so no site changes and CS1737 is not triggered): `new InMemoryDistributedLockProvider(` 5 sites in 3 files, `new RedisDistributedLockProvider(` 43 sites in 7 files (both Redis packages share the type name; the Encina.Caching.Redis ones are untouched), `new SqlServerDistributedLockProvider(` 14 sites in 5 files. Each changed constructor needs its PublicAPI line (remove the old, add the new) and a guard test that a `null` metadata provider is valid.
-- `Encina.DistributedLock` has no `InternalsVisibleTo` for `Encina.GuardTests` (public types only). `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and no Redis collection.
-- `.github/coverage-manifest/Encina.DistributedLock.json`: package targets guard 20, unit 60; the Redis manifest has per-file targets for `RedisDistributedLockProvider.cs` (unit 95, guard 14, integration 70) that this plan never lowers.
+- `Encina.DistributedLock` has no `InternalsVisibleTo` for `Encina.GuardTests` (public types only). `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and references `Encina.TestInfrastructure`, which already has the shared `RedisFixture` and `RedisCollection` (`Name = "Redis"`) in `tests/Encina.TestInfrastructure/Fixtures/RedisFixture.cs` (reused here, not created; the `RedisFixture` under `Infrastructure/Caching/Fixtures/` belongs to the caching tests).
+- Manifest targets that this plan never lowers (`.github/coverage-manifest/`): `Encina.DistributedLock.json` package targets guard 20, unit 60; `Encina.DistributedLock.InMemory.json` `InMemoryDistributedLockProvider.cs` unit 95, guard 13; `Encina.DistributedLock.Redis.json` `RedisDistributedLockProvider.cs` unit 95, guard 14, integration 70; `Encina.DistributedLock.SqlServer.json` `SqlServerDistributedLockProvider.cs` unit 57, guard 6, integration 93 (the targets table below is at or above each of them).
+- Measured sizes of the three provider files on `origin/main`: InMemory 314 lines, Redis 309, SQL Server 321 (a change of 250 to 400 lines each, as the PR 3 to 5 estimates assume).
 
 ---
 
@@ -61,7 +66,7 @@ When a lock is stuck, the first question is "who holds it and doing what". Today
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Interface last, as #218 plans it: PRs 3 to 9 add the property or method to each class first; PR 10 adds the members to `ILockHandle` and `IDistributedLockProvider` only when every implementer on `main` has them** | Every PR builds and passes alone; no default interface member (a compatibility layer, forbidden by `AGENTS.md` section 3) | PR 10 waits for #207 to #210; two plans (#218 and this one) edit `ILockHandle.cs`, the second to land rebases |
+| **A) Interface last, as #218 plans it: PRs 3 to 9, 10a and 10b add the property or method to each class first; PR 10c adds the members to `ILockHandle` and `IDistributedLockProvider` only when every implementer on `main` has them** | Every PR builds and passes alone; no default interface member (a compatibility layer, forbidden by `AGENTS.md` section 3) | PR 10c waits for #207 to #210; two plans (#218 and this one) edit `ILockHandle.cs`, the second to land rebases |
 | **B) Interface first, every implementer in one lockstep PR** | One PR, the contract exists at once | The four planned packages do not exist; the PR would exceed 15 files; they cannot be written to a contract they have not seen |
 | **C) Separate capability interfaces (`ILockInfoProvider` for the provider, handle members on a second interface)** | No ordering problem, optional per provider | A provider can silently not support it: weaker than the seven-provider consistency rule; callers cast |
 
@@ -110,7 +115,7 @@ When a lock is stuck, the first question is "who holds it and doing what". Today
 
 ### Rationale
 
-- A wins on portability and atomicity; B wins when a second key per lock is unacceptable and `cjson` is confirmed on every server the package supports. A changes the acquire from `StringSetAsync(When.NotExists)` to a script, so PR 4 re-measures the integration target of `RedisDistributedLockProvider.cs` (70) and keeps it.
+- A wins on portability and atomicity; B wins when a second key per lock is unacceptable and `cjson` is confirmed on every server the package supports. A changes the acquire from `StringSetAsync(When.NotExists)` to a script, so PR 4 re-measures the integration target of `RedisDistributedLockProvider.cs` (70) and keeps it. Redis Cluster: the existing key is `{KeyPrefix}:lock:{resource}`; PR 4 makes both keys share a hash slot by wrapping the resource in a hash tag, `{KeyPrefix}:lock:{<resource>}` and `{KeyPrefix}:lock:{<resource>}:meta` (the first braces decide the slot, so a `}` inside a resource name moves both keys alike), and the options validator rejects a `KeyPrefix` containing `{`; a multi-key script is otherwise rejected by a cluster with CROSSSLOT. The key format changes (pre-1.0, no migration).
 
 **Class:** Dilemma
 
@@ -144,16 +149,16 @@ When a lock is stuck, the first question is "who holds it and doing what". Today
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Options-bound limits (`MaxCustomProperties` 16, key 64 chars, value 256 chars, total serialized 4 KB) checked before acquiring; a violation is `Left` `lock_metadata.too_large` (`Validation`, ADR-062 R3); the metadata is never copied into logs, metric tags or span attributes except `InstanceId` and `OperationName` (low cardinality, no personal data) on logs and spans; `Owner`, `CorrelationId` and custom properties live only in the backend and in `LockInfo`** | Bounded storage; no application data in telemetry | A caller needing a bigger payload keeps it elsewhere |
+| **A) Options-bound limits (the numbers are Design Choice 7) checked before acquiring; a violation is `Left` `lock_metadata.too_large` (`Validation`, ADR-062 R3); the metadata is never copied into logs, metric tags or span attributes except `InstanceId` and `OperationName` (low cardinality, no personal data) on logs and spans; `Owner`, `CorrelationId` and custom properties live only in the backend and in `LockInfo`** | Bounded storage; no application data in telemetry | A caller needing a bigger payload keeps it elsewhere |
 | **B) No limits, everything on spans as the issue's matrix suggests ("enrich spans with lock metadata")** | Most debugging detail | Unbounded backend rows; custom properties and correlation ids in telemetry |
 
-### Chosen Option: **A**
+### Chosen Option: **A** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Application text can carry personal data; ADR-054 D6.3 forbids data-bearing names in telemetry and `AGENTS.md` section 3 forbids unredacted values in logs. `GetLockInfoAsync` returns holder details to its caller: authorization of who may call it is the caller's (no HTTP endpoint is added here), documented in the README.
+- The privacy rule is fixed: B fails ADR-054 D6.3 (no data-bearing names in telemetry) and `AGENTS.md` section 3 (`EncinaError.Message` and unredacted values never reach logs), because application text can carry personal data. The numbers of option A (16 properties, key 64, value 256, total 4 KB) are this plan's proposal, not a rule: they are the Dilemma below. `GetLockInfoAsync` returns holder details to its caller: authorization of who may call it is the caller's (no HTTP endpoint is added here), documented in the README.
 
-**Class:** Settled
+**Class:** Settled (privacy: no metadata value in logs, tags or spans except `InstanceId` and `OperationName`); the numeric limits are Design Choice 7
 **Settled by:** ADR-054 D6.3 (no data-bearing names) and `AGENTS.md` section 3 (`EncinaError.Message` and unredacted values never reach logs)
 
 </details>
@@ -178,6 +183,27 @@ When a lock is stuck, the first question is "who holds it and doing what". Today
 
 </details>
 
+<details>
+<summary><strong>7. Size limits of the metadata</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) One set of limits for every provider, options-bound with these defaults: `MaxCustomProperties` 16, key 64 characters, value 256 characters, total serialized size 4 KB; a violation is `Left` `lock_metadata.too_large` (`Validation`, ADR-062 R3), checked before acquiring** | The same metadata is accepted or rejected on all seven providers; the 4 KB total fits Azure Blob metadata (8 KB per blob) and a DynamoDB item with room to spare | The numbers are a proposal; a caller needing more keeps the payload elsewhere |
+| **B) No library limit: each backend enforces its own** | Nothing to choose | The same call succeeds on one provider and fails on another: breaks seven-provider consistency; Redis and InMemory would accept unbounded rows |
+| **C) Smaller limits (8 properties, key 32, value 128, total 1 KB)** | Smallest rows, cheapest on the SQL backends | Rejects ordinary tracing strings sooner |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins for consistency across providers; C wins if rows must stay tiny; B fails `AGENTS.md` section 5 (consistent across every provider of the category). The numbers have no external source; they are options-bound, so the maintainer's answer changes a default, not the design.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -190,7 +216,7 @@ When a lock is stuck, the first question is "who holds it and doing what". Today
 <summary><strong>Tasks</strong></summary>
 
 1. **`Metadata/LockMetadata.cs`** and **`LockInfo.cs`** (new, public sealed records, `src/Encina.DistributedLock/`) - properties of the summary; `LockInfo(Resource, LockId, Owner, InstanceId, AcquiredAtUtc, ExpiresAtUtc, Metadata)` (UTC `AtUtc` names per `AGENTS.md` section 4).
-2. **`Metadata/LockMetadataOptions.cs`**, **`LockMetadataOptionsValidator.cs`** (new) - `Owner`, `InstanceId`, the limits of Design Choice 5.
+2. **`Metadata/LockMetadataOptions.cs`**, **`LockMetadataOptionsValidator.cs`** (new) - `Owner`, `InstanceId`, the limits of Design Choice 7.
 3. **`Metadata/LockMetadataRules.cs`** (new, internal static) - validates and merges (per-call over defaults), returns `Either<EncinaError, LockMetadata>`; **`LockMetadataErrorCodes.cs`** (new, public static): `lock_metadata.too_large` (`Validation`), `lock_metadata.store_unavailable` (`Internal`), `lock_metadata.backend_failure` (`Internal`, R4).
 4. **Tests** - limits at the boundary, merge precedence, serialized size, options validator, guard test of the validator; PublicAPI lines and manifest (`mechanical-fixer`).
 
@@ -261,9 +287,9 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **PR 3, `InMemoryDistributedLockProvider.cs`** - metadata in `LockEntry`; the private handle gets `Owner`, `InstanceId`, `Metadata`; public `GetLockInfoAsync`; optional constructor parameter; expired entries are not reported (cleanup as for `IsLockedAsync`).
-2. **PR 4, `RedisDistributedLockProvider.cs`** (Encina.DistributedLock.Redis) - Design Choice 3 option A: acquire script with the meta key, release and extend scripts remove or refresh it; `GetLockInfoAsync` reads both keys in one script; Redis faults are `Left` (`lock_metadata.backend_failure`).
+2. **PR 4, `RedisDistributedLockProvider.cs`** (Encina.DistributedLock.Redis) - Design Choice 3 option A: acquire script with the hash-tagged meta key (Design Choice 3), release and extend scripts remove or refresh it; `GetLockInfoAsync` reads both keys in one script; Redis faults are `Left` (`lock_metadata.backend_failure`).
 3. **PR 5, `SqlServerDistributedLockProvider.cs`** + **`SqlServerLockInfoSchema.cs`** (new) + `SqlServerLockOptions.cs` (`CreateInfoTable`, table name; connection strings keep their `[JsonIgnore]`/`ToString()` rule) - parameterized `@param` SQL, `OpenAsync`/`ExecuteNonQueryAsync` with the token, the probe of Design Choice 4, the unavailable case of Design Choice 6.
-4. **Tests per PR** - unit (the Redis one mocks `IDatabase` as the existing tests do), guard (null metadata provider is valid), integration in the shared fixtures (`ADO-SqlServer`; Redis through the shared fixture added by #220 PR 5, or by PR 4 when first), manifest rows that keep every existing target, PublicAPI lines of the changed constructors and the new methods.
+4. **Tests per PR** - unit (the Redis one mocks `IDatabase` as the existing tests do), guard (null metadata provider is valid), integration in the shared fixtures (`ADO-SqlServer`; Redis through the existing `[Collection(RedisCollection.Name)]` and `RedisFixture` of `Encina.TestInfrastructure.Fixtures`, nothing created), manifest rows that keep every existing target, PublicAPI lines of the changed constructors and the new methods.
 
 </details>
 
@@ -297,7 +323,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. One PR per package after it merged: PostgreSQL #207 (info table, `LIMIT`, lowercase identifiers, advisory-lock probe), MySQL #208 (info table, backtick identifiers, `GET_LOCK` probe), Azure Blob #209 (lease blob metadata, size limit of blob metadata checked against Design Choice 5), DynamoDB #210 (attributes on the lock item, TTL attribute). Each adds the handle properties, `GetLockInfoAsync`, tests, manifest rows and PublicAPI lines; the packages' own plans do not carry this work.
+1. One PR per package after it merged: PostgreSQL #207 (info table, `LIMIT`, lowercase identifiers, advisory-lock probe), MySQL #208 (info table, backtick identifiers, `GET_LOCK` probe), Azure Blob #209 (lease blob metadata, size limit of blob metadata checked against Design Choice 7), DynamoDB #210 (attributes on the lock item, TTL attribute). Each adds the handle properties, `GetLockInfoAsync`, tests, manifest rows and PublicAPI lines; the packages' own plans do not carry this work.
 
 </details>
 
@@ -314,7 +340,7 @@ TASK:
 Add the handle properties, GetLockInfoAsync, the storage of Design Choices 4 and 6, the tests and the contract subclass.
 
 KEY RULES:
-- SQL differences of AGENTS.md section 5; asynchronous database calls with the token; limits of Design Choice 5.
+- SQL differences of AGENTS.md section 5; asynchronous database calls with the token; limits of Design Choice 7.
 
 REFERENCE FILES:
 - docs/plans/lock-postgresql-implementation-plan-207.md (and 208, 209, 210), the merged package
@@ -322,16 +348,16 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 5: Interface Completion (PR 10)
+### Phase 5: Interface Completion (PRs 10a, 10b, 10c)
 
-> **Goal**: The members become part of the contract.
+> **Goal**: The members become part of the contract. The count of the implementers (below) is over 15 files, so the phase is three pull requests; each adds members to classes first and only 10c touches the interfaces.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`ILockHandle.cs`**, **`IDistributedLockProvider.cs`** (modify) - add `Owner`, `InstanceId`, `Metadata` and `GetLockInfoAsync` (`Task<Either<EncinaError, Option<LockInfo>>>`); core PublicAPI lines.
-2. Every remaining implementer of the table: `InstrumentedLockHandle` and `InstrumentedDistributedLockProvider` (#724), the tenant decorator (#741: forwards the scoped name and maps `LockInfo.Resource` back to the caller's name), `AutoExtendingLockHandle` and `AutoExtendDistributedLockProvider` (#223), the RedLock handle and provider (#226), the two caching providers if they implement `ILockHandle` by then. The PR is split in two (core plus in-repo implementers; decorators) when the count would pass 15 files.
-3. **Tests** - the contract suite of Phase 7; build verification over the whole solution.
+1. **PR 10a, the decorators and wrappers** (members on the classes, forwarding): `InstrumentedLockHandle` and `InstrumentedDistributedLockProvider` (#724), the tenant decorator (#741: forwards the scoped name and maps `LockInfo.Resource` back to the caller's name; its handle too if it wraps one), `AutoExtendingLockHandle` and `AutoExtendDistributedLockProvider` (#223); forwarding tests and one guard test per public constructor.
+2. **PR 10b, the remaining providers** (members on the classes): the RedLock provider and handle (#226), `MongoDbDistributedLockProvider` and its handle (#609, when merged: fields in the lock document), the two caching providers if they implement `ILockHandle` by then (their handles too).
+3. **PR 10c, the interfaces**: **`ILockHandle.cs`**, **`IDistributedLockProvider.cs`** (modify) - add `Owner`, `InstanceId`, `Metadata` and `GetLockInfoAsync` (`Task<Either<EncinaError, Option<LockInfo>>>`); core PublicAPI lines; before opening it, re-run the declaration-form grep of the table over `src/`, `tests/` and `docs/plans` and confirm every implementer on `main` already has the members (a new implementer, such as the MongoDB provider when #609 merges late, is added to 10b or fixed in its own PR first); the contract suite of Phase 7 and a build of the whole solution are its tests.
 
 </details>
 
@@ -342,10 +368,10 @@ REFERENCE FILES:
 You are implementing Phase 5 of issue #224: adding the members to ILockHandle and IDistributedLockProvider.
 
 CONTEXT:
-- Every implementer already has the members as class members; the plan's implementer table lists them. A compile of Encina.slnx must be green.
+- Every implementer already has the members as class members (PRs 10a and 10b add them to the decorators, wrappers and remaining providers); the plan's implementer table lists them. A compile of Encina.slnx must be green.
 
 TASK:
-Add the interface members, the PublicAPI lines and the forwarding in every decorator and wrapper.
+PR 10a and 10b: the forwarding members of every decorator, wrapper and remaining provider. PR 10c: the interface members and the PublicAPI lines.
 
 KEY RULES:
 - No default interface member; grep every implementer (declaration form, multi-line) before and after.
@@ -363,8 +389,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Diagnostics/LockMetadataLog.cs`** (new, `internal static partial`) - 30614 lock info query failed (Warning: error code), 30615 metadata provider threw so defaults were used (Warning: exception type via `ForLogging()`), 30616 metadata rejected for size (Warning: counts only). Ids 30614-30616 of the family range `DistributedLockPipeline` (30600-30649). The acquire Debug lines of the providers add `InstanceId` and `OperationName` only.
-2. **Instruments** - counter `encina.distributed_lock.info_queries` (tag `encina.lock.outcome`: `held`, `not_held`, `failed`) on the shared `DistributedLockDiagnostics` meter; no `_total`; no resource name; tenant tag only with multi-tenancy (#2676). The span attribute `encina.lock.operation` is added to the spans of #724.
+1. **`Diagnostics/LockMetadataLog.cs`** (new, `internal static partial`) - 30614 lock info query failed (Warning: error code), 30615 metadata provider threw so defaults were used (Warning: exception type via `ForLogging()`), 30616 metadata rejected for size (Warning: counts only). Ids 30614-30616 of the family range `DistributedLockPipeline` (30600-30649). The acquire Debug lines of the providers add `InstanceId` and `OperationName` only, written in PRs 3 to 5 with the provider changes, not here.
+2. **`Diagnostics/LockMetadataMetrics.cs`** (new, internal) - the instruments, on the shared `DistributedLockDiagnostics` meter: counter `encina.distributed_lock.info_queries` (tag `encina.lock.outcome`: `held`, `not_held`, `failed`) on the shared `DistributedLockDiagnostics` meter; no `_total`; no resource name; tenant tag only with multi-tenancy (#2676). The span attribute `encina.lock.operation` is added to the spans of #724.
 3. **EventId registration** only if this PR is the first of the family with a log (`EventIdRanges.cs` field `DistributedLockPipeline = (30600, 30649)`, core `PublicAPI.Unshipped.txt`, one registry row with the same bounds, `AssemblyRanges` entry; owned by #220 PR 4 by default).
 4. **Tests** - `MeterListener` and log tests, load and benchmark justification `.md` files.
 
@@ -398,7 +424,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`tests/Encina.ContractTests/DistributedLock/LockMetadataContractTests.cs`** (new, abstract base plus an InMemory subclass) and **`Encina.ContractTests.csproj`** (modify: two `ProjectReference` lines unless #220 PR 5 added them; the project has none today and no Redis or SQL Server fixture): held lock reports owner and instance, released lock reports `None`, a crashed holder reports `None`, limits rejected. Redis and SQL Server subclasses live in `Encina.IntegrationTests` (they own the shared fixtures); each planned provider adds one subclass in its own PR.
+1. **`tests/Encina.ContractTests/DistributedLock/LockMetadataContractTests.cs`** (new, abstract base plus an InMemory subclass) and **`Encina.ContractTests.csproj`** (modify: two `ProjectReference` lines unless #220 PR 5 added them; the project has none today and no Redis or SQL Server fixture): held lock reports owner and instance, released lock reports `None`, a crashed holder reports `None`, limits rejected. Redis and SQL Server subclasses live in `Encina.IntegrationTests` (2 more files, counted in PR 12; Redis uses the existing `[Collection(RedisCollection.Name)]`, SQL Server `ADO-SqlServer`); each planned provider adds one subclass in its own PR.
 
 </details>
 
@@ -467,14 +493,16 @@ REFERENCE FILES:
 | 1 | Types, limits, options | 6 | 1 (PublicAPI) | 4 (rules tests, options tests, validator guard test, manifest) | 11 | 900 |
 | 2 | Defaults, scope, registration | 4 | 3 (`ServiceCollectionExtensions.cs`, PublicAPI, README) | 5 (provider tests, scope tests, DI test, manifest, fragment) | 12 | 800 |
 | 3 | InMemory | 0 | 2 (provider, PublicAPI) | 4 (unit, guard, manifest, constructor sites of the unit test) | 6 | 350 |
-| 4 | Redis | 0 | 2 (provider, PublicAPI) | 5 (unit, guard, integration, manifest, Redis fixture 2 if first) | 7 (9) | 500 |
+| 4 | Redis | 0 | 2 (provider, PublicAPI) | 4 (unit, guard, integration, manifest; the Redis fixture and collection already exist) | 6 | 500 |
 | 5 | SQL Server | 1 (`SqlServerLockInfoSchema.cs`) | 3 (provider, options, PublicAPI) | 4 (unit, guard, integration, manifest) | 8 | 600 |
 | 6 to 9 | One PR per planned provider | 1 to 2 | 2 to 3 | 4 | about 8 each | about 500 each |
-| 10 | Interface completion | 0 | 3 core (2 interfaces, PublicAPI) + up to 8 implementers | 2 | up to 13 (split in two if over 15) | 600 |
-| 11 | Log, instruments (+4 if first of the family) | 1 | 2 | 5 (log tests, metrics tests, manifest, 2 `.md`) | 8 (12) | 500 |
-| 12 | Contract | 2 (contract base, InMemory subclass) | 1 (ContractTests csproj) | 0 | 3 | 350 |
+| 10a | Decorators and wrappers (#724: 2 classes, #741: 1 to 2, #223: 2) | 0 | 5 to 6 | 2 (forwarding tests, guard tests) | 7 to 8 | 450 |
+| 10b | Remaining providers (#226: 2, #609: 2, caching providers: 2, plus their 2 handles if on `ILockHandle`) | 0 | 6 to 8 | 2 (provider tests, guard tests) | 8 to 10 | 500 |
+| 10c | Interfaces | 0 | 3 (`ILockHandle.cs`, `IDistributedLockProvider.cs`, PublicAPI) | 2 (contract/build check, manifest) | 5 | 250 |
+| 11 | Log, metrics (+4 if first of the family) | 2 (`LockMetadataLog.cs`, `LockMetadataMetrics.cs`) | 1 (the #724 decorator: span attribute) | 5 (log tests, metrics tests, manifest, 2 `.md`) | 8 (12) | 500 |
+| 12 | Contract | 4 (contract base, InMemory subclass, Redis and SQL Server subclasses in `Encina.IntegrationTests`) | 1 (ContractTests csproj) | 0 | 5 | 450 |
 
-Total about 6,900 lines over 12 PRs (the per-provider PRs 6 to 9 are 2,000 of it). Every PR is at most 15 files and 1,500 lines and builds and passes alone (PR 10 waits for #207 to #210).
+Total about 7,300 lines (900 + 800 + 350 + 500 + 600 + 2,000 for PRs 6 to 9 + 450 + 500 + 250 + 500 + 450). Every PR is at most 15 files and 1,500 lines and builds and passes alone (PR 10c waits for #207 to #210 and for every implementer in the table).
 
 ### Per-file coverage targets (numeric, per flag)
 
@@ -482,9 +510,11 @@ Total about 6,900 lines over 12 PRs (the per-provider PRs 6 to 9 are 2,000 of it
 |------|------|-------|----------|-------------|---------------|
 | `LockMetadataRules.cs`, `DefaultLockMetadataProvider.cs`, `LockMetadataScope.cs` | 95 | 0 | 0 | 0 | Pure logic; internal or ambient types with no `InternalsVisibleTo` for `Encina.GuardTests`, so guard tests cannot reach them |
 | `LockMetadataOptionsValidator.cs`, `LockMetadataOptions.cs` | 95 | 40 | 0 | 0 | Pure validation |
-| `InMemoryDistributedLockProvider.cs` (changed part) | 95 | 20 | 60 | 0 | Every branch on a fake clock; guard covers the new optional parameter |
+| `InMemoryDistributedLockProvider.cs` (changed part) | 95 | 20 | 60 | 0 | Manifest values unit 95, guard 13 are kept or raised; every branch on a fake clock; guard covers the new optional parameter |
 | `RedisDistributedLockProvider.cs` | 95 | 14 | 0 | 70 | Existing targets kept (manifest values unit 95, guard 14, integration 70); the script and info read run against a real server |
-| `SqlServerDistributedLockProvider.cs`, `SqlServerLockInfoSchema.cs` | 90 | 15 | 0 | 60 | SQL text and probe covered by unit with a mocked connection factory where the code allows and by the shared `ADO-SqlServer` fixture |
+| `LockMetadataMetrics.cs` | 85 | 0 | 0 | 0 | Instruments tested with a `MeterListener`; internal type, no `InternalsVisibleTo` for `Encina.GuardTests` |
+| `SqlServerDistributedLockProvider.cs` | 90 | 15 | 0 | 94 | Manifest values are unit 57, guard 6, integration 93 (measured 94.0%): the integration target stays at or above 93 (set 94) because the new `GetLockInfoAsync`, the probe and the info-table writes all run against the shared `ADO-SqlServer` SQL Server; unit raised to 90 with the SQL text built by testable helpers |
+| `SqlServerLockInfoSchema.cs` | 90 | 15 | 0 | 90 | New file: the idempotent create script and the statements run against the shared `ADO-SqlServer` fixture; unit tests cover the SQL text |
 | `LockMetadata.cs`, `LockInfo.cs`, `LockMetadataErrorCodes.cs`, `ILockMetadataProvider.cs`, `ILockMetadataScope.cs`, `LockMetadataLog.cs` | 0 | 0 | 0 | 0 | Records, constants, interfaces and source-generated log methods: no executable logic; covered through the providers |
 
 ---
@@ -497,7 +527,7 @@ Total about 6,900 lines over 12 PRs (the per-provider PRs 6 to 9 are 2,000 of it
 ```
 PROJECT CONTEXT:
 Encina is pre-1.0 (.NET 10, C# 14, nullable enabled). Rules are in AGENTS.md. Issue #224 adds lock metadata and GetLockInfoAsync to all
-seven lock providers; the interface members land last (PR 10) after every implementer has them.
+seven lock providers; the interface members land last (PR 10c) after every implementer has them.
 
 IMPLEMENTATION OVERVIEW:
 1. Phase 1: LockMetadata, LockInfo, limits, options. Phase 2: ILockMetadataProvider, default, ambient scope, registration.
@@ -507,7 +537,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - ADR-052: GetLockInfoAsync returns Either<EncinaError, Option<LockInfo>>; a stale row never reports a held lock.
 - Never log or tag Owner, CorrelationId, custom properties, resource names or EncinaError.Message.
-- Dilemmas 1, 2, 3 and 6 are pending the maintainer: implement the recommended options only after he answers.
+- Dilemmas 1, 2, 3, 6 and 7 are pending the maintainer: implement the recommended options only after he answers.
 - SQL Server ignores lock expiry until #2405: state it, never claim expiry-based info there.
 
 REFERENCE FILES:
@@ -526,12 +556,12 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ✅ Include | Phase 6: info-query counter; span attribute `encina.lock.operation` only; no owner, correlation id or custom properties |
 | 3 | Structured Logging | ✅ Include | Phase 6: `LockMetadataLog` 30614-30616; acquire lines add `InstanceId` and `OperationName` only |
 | 4 | Health Checks | ❌ N/A | Metadata is informational, not a service dependency |
-| 5 | Validation | ✅ Include | Size and count limits (Design Choice 5); invalid metadata is `Left` with category `Validation` |
+| 5 | Validation | ✅ Include | Size and count limits (Design Choice 7); invalid metadata is `Left` with category `Validation` |
 | 6 | Resilience | ❌ N/A | Metadata storage is co-located with the lock (same call or same backend) |
 | 7 | Distributed Locks | ❌ N/A | This is a lock feature, not a consumer |
 | 8 | Transactions | ❌ N/A | Locks are separate from transactions |
 | 9 | Idempotency | ❌ N/A | A repeated query returns the same facts |
-| 10 | Multi-Tenancy | ⏭️ Defer | The decorator of #741 scopes the resource name and maps it back in `GetLockInfoAsync` (PR 10); missing tenant fails closed there |
+| 10 | Multi-Tenancy | ⏭️ Defer | The decorator of #741 scopes the resource name and maps it back in `GetLockInfoAsync` (PR 10a); missing tenant fails closed there |
 | 11 | Module Isolation | ❌ N/A | Modules are separated with `KeyPrefix` (the position of the #741 plan) |
 | 12 | Audit Trail | ❌ N/A | The metadata holds machine, process and operation names, not personal data by contract; custom properties are the application's and must not carry personal data (README) |
 
@@ -542,9 +572,10 @@ REFERENCE FILES:
 | Item | State | Needed for |
 |------|-------|------------|
 | #2667 ADR-052 implementation | open | All PRs |
-| #207, #208, #209, #210 packages | plans on main, not written | PRs 6 to 9, then PR 10 |
-| #218 (`FencingToken` on `ILockHandle`), #724, #741, #223, #226 | plans on main | PR 10 (decorators and wrappers forward the members) |
-| #2653 duplicate caching lock providers | open | PR 10 (their handles must be `ILockHandle`) |
+| #207, #208, #209, #210 packages | plans on main, not written | PRs 6 to 9, then PR 10c |
+| #218 (`FencingToken` on `ILockHandle`), #724, #741, #223, #226 | plans on main | PR 10a and 10b (decorators, wrappers and providers forward the members) |
+| #609 MongoDB lock provider | plan on main, issue open | PR 10b and 10c: an implementer the interface PR must not miss |
+| #2653 duplicate caching lock providers | open | PR 10b (their handles must be `ILockHandle`) |
 | #2405 SQL Server expiry | open bug | Any SQL Server expiry statement |
 | Family EventId range | registered by #220 PR 4 or the first family PR with a log | PR 11 |
 
@@ -552,5 +583,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. After #2667 merges open PR 1 and PR 2, then PRs 3, 4, 5; PRs 6 to 9 as each package merges; PR 10 after them; PR 11 and PR 12 after PR 5.
-2. The maintainer answers Dilemmas 1, 2, 3 and 6 when work on the issue starts; PRs are written for the recommended answers.
+1. After #2667 merges open PR 1 and PR 2, then PRs 3, 4, 5; PRs 6 to 9 as each package merges; PRs 10a and 10b after them, then 10c; PR 11 and PR 12 after PR 5.
+2. The maintainer answers Dilemmas 1, 2, 3, 6 and 7 when work on the issue starts; PRs are written for the recommended answers.
