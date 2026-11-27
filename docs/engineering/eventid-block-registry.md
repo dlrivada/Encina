@@ -464,7 +464,7 @@ Plans claim single ids inside a range a package already owns. These claims are n
 
 | Range | Ids | Plan |
 | --- | --- | --- |
-| Marten | 2747 | #764 (merged plan) |
+| Marten | 2747 | #764 (merged plan); option B of the pending Dilemma in the #697 plan (Marten 2747-2752) would collide with 2747 if chosen |
 | SecurityAudit 5000-5099 | 5019-5023 | #4384 (merged plan) |
 | CachingPatterns (block 450-499, cache-patterns-1) | 488-489 | #4396 |
 | CachingPatterns (block 450-499, cache-patterns-1) | 490-493 | #4398 |
@@ -478,7 +478,8 @@ Plans claim single ids inside a range a package already owns. These claims are n
 | ResilienceLoadShedding 912-923 | 917-919 | #4395 |
 | ResilienceProvider 970-984 (#742 range) | 976-980 | #4392 |
 | Resilience timeouts block 950-999 | 955-957 | #4391 |
-| Polly 3900-3949 | 3925-3930 | #4380 |
+| Polly 3900-3949 | 3925-3930 | #4380 (the #3976 plan also claims 3925-3927; the owner is settled in #4548) |
+
 ## ADR numbers
 
 Plans name an ADR number only from this table; otherwise they write "ADR number assigned when the ADR pull request opens". Existing: 063 is the last merged; 059 and 061 are reserved in [the ADR index](../architecture/adr/index.md).
