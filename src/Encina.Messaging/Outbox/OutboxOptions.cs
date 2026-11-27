@@ -104,7 +104,7 @@ public sealed class OutboxOptions
     /// A <c>Retry-After</c> strictly above it schedules nothing: the message is exhausted at once, whatever its
     /// <see cref="IOutboxMessage.RetryCount"/> (the store raises it to <see cref="MaxRetries"/> through
     /// <see cref="IOutboxStore.MarkAsExhaustedAsync"/>), dead-lettered with the error code
-    /// <see cref="Recoverability.RecoverabilityErrorCodes.RetryAfterExceedsCeiling"/>, and a warning (EventId 5456)
+    /// <see cref="Recoverability.RecoverabilityErrorCodes.RetryAfterExceedsCeiling"/>, and a warning (EventId 12056)
     /// is logged. It can be requeued like any exhausted message.
     /// </para>
     /// <para>

@@ -239,7 +239,7 @@ public sealed class RecoverabilityDuplicateRegistrationTests
         await host.StartAsync();
         await host.StopAsync();
 
-        log.Entries.ShouldNotContain(e => e.EventId.Id == 5458);
+        log.Entries.ShouldNotContain(e => e.EventId.Id == 12058);
     }
 
     [Fact]
@@ -257,7 +257,7 @@ public sealed class RecoverabilityDuplicateRegistrationTests
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
 
         ShouldNameTheDuplicate(ex, "RecoverabilityPipelineBehavior is registered 2 times");
-        log.Entries.ShouldContain(e => e.EventId.Id == 5458 && e.Level == LogLevel.Critical);
+        log.Entries.ShouldContain(e => e.EventId.Id == 12058 && e.Level == LogLevel.Critical);
     }
 
     [Theory]
@@ -277,7 +277,7 @@ public sealed class RecoverabilityDuplicateRegistrationTests
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
 
         ShouldNameTheDuplicate(ex, "RecoverabilityOptions instance");
-        log.Entries.ShouldContain(e => e.EventId.Id == 5458 && e.Level == LogLevel.Critical);
+        log.Entries.ShouldContain(e => e.EventId.Id == 12058 && e.Level == LogLevel.Critical);
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public sealed class RecoverabilityDuplicateRegistrationTests
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
 
         ShouldNameTheDuplicate(ex, "RecoverabilityOptions instance");
-        log.Entries.ShouldContain(e => e.EventId.Id == 5458 && e.Level == LogLevel.Critical);
+        log.Entries.ShouldContain(e => e.EventId.Id == 12058 && e.Level == LogLevel.Critical);
     }
 
     [Fact]

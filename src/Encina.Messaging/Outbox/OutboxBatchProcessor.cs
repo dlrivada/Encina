@@ -30,18 +30,18 @@ namespace Encina.Messaging.Outbox;
 /// <para>
 /// With the dead letter queue registered and <c>DeadLetterOptions.IntegrateWithOutbox</c> on, the exhausted
 /// message is captured first (stored type name and content, keyed by the message id). When that capture
-/// fails in a retryable way, the exhausted state is not recorded: the message is logged with EventId 2961
+/// fails in a retryable way, the exhausted state is not recorded: the message is logged with EventId 11711
 /// (operation <c>DeadLetterCapture</c>), counted as a store error and delivered again in a later cycle. A capture
 /// the queue rejects (<c>dlq.capture_rejected</c>) is not retried: the exhausted state is recorded.
 /// </para>
 /// <para>
 /// Every store call is checked. When <see cref="IOutboxStore.MarkAsProcessedAsync"/> or
 /// <see cref="IOutboxStore.MarkAsFailedAsync"/> returns <c>Left</c>, the message is logged with EventId
-/// 2961 and counted as a store error, never as delivered or exhausted.
+/// 11711 and counted as a store error, never as delivered or exhausted.
 /// </para>
 /// <para>
 /// Cancellation is not a delivery failure. When the cycle's token is cancelled, or the dispatcher
-/// returns <see cref="EncinaErrorCodes.NotificationCancelled"/>, the batch stops (EventId 2962) without
+/// returns <see cref="EncinaErrorCodes.NotificationCancelled"/>, the batch stops (EventId 11712) without
 /// marking the interrupted message failed, so no retry is consumed.
 /// </para>
 /// <para>
@@ -53,7 +53,7 @@ internal sealed class OutboxBatchProcessor
 {
     private static readonly IMessageSerializer DefaultSerializer = new JsonMessageSerializer();
 
-    // The operation named by EventId 2961 when the dead letter capture of an exhausted message fails.
+    // The operation named by EventId 11711 when the dead letter capture of an exhausted message fails.
     private const string DeadLetterCaptureOperation = "DeadLetterCapture";
 
     private readonly IOutboxStore _store;

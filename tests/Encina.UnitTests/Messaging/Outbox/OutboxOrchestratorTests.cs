@@ -513,7 +513,7 @@ public sealed class OutboxOrchestratorTests
     }
 
     [Fact]
-    public async Task RequeueExhaustedAsync_Success_LogsWithEventId2959()
+    public async Task RequeueExhaustedAsync_Success_LogsWithEventId11709()
     {
         // Arrange
         var fixture = CreateTestFixture();
@@ -529,7 +529,7 @@ public sealed class OutboxOrchestratorTests
         // Assert
         fixture.Logger.Received(1).Log(
             LogLevel.Information,
-            Arg.Is<EventId>(e => e.Id == 2959),
+            Arg.Is<EventId>(e => e.Id == 11709),
             Arg.Any<Arg.AnyType>(),
             Arg.Any<Exception?>(),
             Arg.Any<Func<Arg.AnyType, Exception?, string>>());

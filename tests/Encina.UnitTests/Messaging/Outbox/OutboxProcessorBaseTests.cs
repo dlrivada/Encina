@@ -26,13 +26,13 @@ public sealed class OutboxProcessorBaseTests
             .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("outbox.save_failed", "Deadlock victim for patient-123")));
         using var unsaved = new OutcomeListener("unsaved");
 
-        await harness.RunUntilLoggedAsync(2960);
+        await harness.RunUntilLoggedAsync(11710);
 
-        var entry = harness.Logger.Entries.Single(e => e.EventId == 2960);
+        var entry = harness.Logger.Entries.Single(e => e.EventId == 11710);
         entry.Level.ShouldBe(LogLevel.Error);
         entry.Message.ShouldContain("outbox.save_failed");
         entry.Message.ShouldNotContain("patient-123");
-        harness.Logger.EventIds.ShouldNotContain(2833);
+        harness.Logger.EventIds.ShouldNotContain(11583);
         unsaved.Total.ShouldBeGreaterThanOrEqualTo(1);
     }
 
@@ -45,9 +45,9 @@ public sealed class OutboxProcessorBaseTests
             .Returns(Left<EncinaError, IEnumerable<IOutboxMessage>>(
                 EncinaErrors.Create("outbox.fetch_failed", "Row for patient-123 is locked")));
 
-        await harness.RunUntilLoggedAsync(2829);
+        await harness.RunUntilLoggedAsync(11579);
 
-        var entry = harness.Logger.Entries.First(e => e.EventId == 2829);
+        var entry = harness.Logger.Entries.First(e => e.EventId == 11579);
         entry.Message.ShouldContain("outbox.fetch_failed");
         harness.Logger.Entries.ShouldAllBe(e => !e.Message.Contains("patient-123"));
     }
@@ -58,13 +58,13 @@ public sealed class OutboxProcessorBaseTests
         var harness = new Harness(Left<EncinaError, Unit>(
             EncinaErrors.Create("consent.missing", "No consent for subject patient-123")));
 
-        await harness.RunUntilLoggedAsync(2832);
+        await harness.RunUntilLoggedAsync(11582);
 
         await harness.Store.Received().MarkAsFailedAsync(
             Arg.Any<Guid>(), "consent.missing", Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
         await harness.Store.DidNotReceive().MarkAsFailedAsync(
             Arg.Any<Guid>(), Arg.Is<string>(s => s.Contains("patient-123")), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
-        harness.Logger.Entries.Single(e => e.EventId == 2832).Message.ShouldContain("consent.missing");
+        harness.Logger.Entries.Single(e => e.EventId == 11582).Message.ShouldContain("consent.missing");
         harness.Logger.Entries.ShouldAllBe(e => !e.Message.Contains("patient-123"));
     }
 
@@ -73,9 +73,9 @@ public sealed class OutboxProcessorBaseTests
     {
         var harness = new Harness(Right<EncinaError, Unit>(Unit.Default));
 
-        await harness.RunUntilLoggedAsync(2833);
+        await harness.RunUntilLoggedAsync(11583);
 
-        harness.Logger.EventIds.ShouldNotContain(2960);
+        harness.Logger.EventIds.ShouldNotContain(11710);
         await harness.Store.Received().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -85,7 +85,7 @@ public sealed class OutboxProcessorBaseTests
         var cancelled = EncinaErrors.Create(EncinaErrorCodes.NotificationCancelled, "Notification handler was cancelled");
         var harness = new Harness(Left<EncinaError, Unit>(cancelled));
 
-        await harness.RunUntilLoggedAsync(2962);
+        await harness.RunUntilLoggedAsync(11712);
 
         await harness.Store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
         await harness.Store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);

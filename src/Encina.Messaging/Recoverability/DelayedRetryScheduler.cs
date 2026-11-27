@@ -168,14 +168,14 @@ internal sealed class SerializableRecoverabilityContext
 internal static partial class DelayedRetryLog
 {
     [LoggerMessage(
-        EventId = 2859,
+        EventId = 11609,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] {RequestType} delayed retry #{Attempt} scheduled for {ExecuteAt:O}")]
     public static partial void RetryScheduled(
         ILogger logger, string correlationId, string requestType, int attempt, DateTime executeAt);
 
     [LoggerMessage(
-        EventId = 2860,
+        EventId = 11610,
         Level = LogLevel.Debug,
         Message = "Delayed retry for context {ContextId} cancelled")]
     public static partial void RetryCancelled(ILogger logger, Guid contextId);

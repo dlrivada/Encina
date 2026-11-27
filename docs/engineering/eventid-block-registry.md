@@ -50,8 +50,8 @@ Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` i
 | MessagingSaga | 11000-11099 | Core and messaging | zone |
 | MessagingScheduling | 11100-11199 | Core and messaging | zone |
 | IdGeneration | 12100-12199 | Core and messaging | zone |
-| Messaging | 2800-2999 | Core and messaging | historical |
-| MessagingRecoverability | 5450-5499 | Core and messaging | historical |
+| Messaging | 11550-11749 | Core and messaging | zone |
+| MessagingRecoverability | 12050-12099 | Core and messaging | zone |
 | MessagingEncryption | 2450-2499 | Core and messaging | historical |
 | Cdc | 4800-4899 | Core and messaging | historical |
 | CdcSqlServer | 4900-4949 | Core and messaging | historical |
@@ -305,13 +305,13 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 11250-11299 | Core and messaging | #4007 DomainModelingDomainEvents (CM-2) | registered |
 | 11300-11349 | Core and messaging | #4007 AuditMarten (CM-6) | reserved |
 | 11350-11549 | Core and messaging | #4007 Marten (CM-6) | reserved |
-| 11550-11749 | Core and messaging | #4007 Messaging (CM-4) | reserved |
+| 11550-11749 | Core and messaging | #4007 Messaging (CM-4) | registered |
 | 11750-11799 | Core and messaging | #4007 TenancyAspNetCore (CM-2) | registered |
 | 11800-11899 | Core and messaging | #4007 Cdc (CM-5) | reserved |
 | 11900-11949 | Core and messaging | #4007 CdcSqlServer (CM-5) | reserved |
 | 11950-11999 | Core and messaging | #4007 CdcDebezium (CM-5) | reserved |
 | 12000-12049 | Core and messaging | #4007 CdcMySql (CM-5) | reserved |
-| 12050-12099 | Core and messaging | #4007 MessagingRecoverability (CM-4) | reserved |
+| 12050-12099 | Core and messaging | #4007 MessagingRecoverability (CM-4) | registered |
 | 12100-12199 | Core and messaging | #4007 IdGeneration (CM-3) | registered |
 | 20000-20099 | Database | #4007 EntityFrameworkCoreSoftDelete (DB-1) | reserved |
 | 20100-20149 | Database | #4007 EntityFrameworkCoreQueryCache (DB-1) | reserved |
@@ -399,7 +399,7 @@ Plans claim single ids inside a range a package already owns. These claims are n
 
 | Range | Ids | Plan |
 | --- | --- | --- |
-| (existing ranges) | MessagingSaga 11006; Messaging 2971-2972 (verified free on main 2026-11-12) | #736 |
+| (existing ranges) | MessagingSaga 11006; Messaging 11721-11722 (verified free on main 2026-11-12) | #736 |
 | AspNetCore 200-249 | 208-211 | #3443 |
 | AspNetCore 200-249 | 212-217 | #710 |
 | AspNetCore 200-249 | 218-225 | #2229 |
@@ -434,7 +434,7 @@ Plans claim single ids inside a range a package already owns. These claims are n
 
 | Range | Ids | Plan |
 | --- | --- | --- |
-| Messaging | 2973-2976 | #121 |
+| Messaging | 11723-11726 | #121 |
 | Kafka | 4176-4177 | #252 |
 | AzureServiceBus | 4312-4314 | #252 |
 | RabbitMQ | 4106-4108 | #252 |
@@ -458,7 +458,7 @@ Plans claim single ids inside a range a package already owns. These claims are n
 | --- | --- | --- |
 | Core | 10077-10083 | #2382 |
 | Core | 10084-10085 | #132 |
-| Messaging | 2977-2979 (reserved if planned) | #176 |
+| Messaging | 11727-11729 (reserved if planned) | #176 |
 
 ### Plan claims inside existing ranges and blocks (2026-11-27)
 

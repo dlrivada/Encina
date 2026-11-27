@@ -80,7 +80,7 @@ public sealed class DelayedRetryProcessorTests
     public async Task ExecuteAsync_WhenStoreNotRegistered_FailsTheCycleWithAnErrorLogAndKeepsRunning()
     {
         // Arrange - the startup check guarantees the store when delayed retries are on, so a missing store
-        // is an error of the cycle (logged, EventId 2847), never a silent "healthy" cycle.
+        // is an error of the cycle (logged, EventId 11597), never a silent "healthy" cycle.
         var services = new ServiceCollection();
         using var provider = services.BuildServiceProvider();
         var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<DelayedRetryProcessor>();
@@ -96,7 +96,7 @@ public sealed class DelayedRetryProcessorTests
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (logger.Collector.GetSnapshot().Count(r => r.Id.Id == 2847) < 2)
+            while (logger.Collector.GetSnapshot().Count(r => r.Id.Id == 11597) < 2)
             {
                 await Task.Delay(5, timeout.Token);
             }
@@ -108,17 +108,17 @@ public sealed class DelayedRetryProcessorTests
         }
 
         // Assert
-        var failures = logger.Collector.GetSnapshot().Where(r => r.Id.Id == 2847).ToList();
+        var failures = logger.Collector.GetSnapshot().Where(r => r.Id.Id == 11597).ToList();
         failures.Count.ShouldBeGreaterThanOrEqualTo(2);
         failures.ShouldAllBe(r => r.Level == Microsoft.Extensions.Logging.LogLevel.Error);
-        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 2848);
+        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 11598);
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenEncinaNotRegistered_FailsTheCycleWithAnErrorLogAndKeepsRunning()
     {
         // Arrange - a store but no IEncina (no host, so the startup check never ran): the cycle fails
-        // (logged, EventId 2847) instead of skipping silently with a warning.
+        // (logged, EventId 11597) instead of skipping silently with a warning.
         var services = new ServiceCollection();
         services.AddSingleton(Substitute.For<IDelayedRetryStore>());
         services.AddSingleton<IMessageSerializer>(new JsonMessageSerializer());
@@ -136,7 +136,7 @@ public sealed class DelayedRetryProcessorTests
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (logger.Collector.GetSnapshot().Count(r => r.Id.Id == 2847) < 2)
+            while (logger.Collector.GetSnapshot().Count(r => r.Id.Id == 11597) < 2)
             {
                 await Task.Delay(5, timeout.Token);
             }
@@ -148,7 +148,7 @@ public sealed class DelayedRetryProcessorTests
         }
 
         // Assert
-        var failures = logger.Collector.GetSnapshot().Where(r => r.Id.Id == 2847).ToList();
+        var failures = logger.Collector.GetSnapshot().Where(r => r.Id.Id == 11597).ToList();
         failures.Count.ShouldBeGreaterThanOrEqualTo(2);
         failures.ShouldAllBe(r => r.Level == Microsoft.Extensions.Logging.LogLevel.Error);
         failures.ShouldAllBe(r => r.Exception != null);

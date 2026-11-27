@@ -309,7 +309,7 @@ internal static class EventIdBlockRegistry
     {
         "Sanitization", "AspNetCore", "Testing", "EntityFrameworkCoreSoftDelete",
         "SecurityAuditRead", "EntityFrameworkCoreQueryCache",
-        "MessagingEncryption", "AuditMarten", "Marten", "Messaging",
+        "MessagingEncryption", "AuditMarten", "Marten",
         "EntityFrameworkCore", "MongoDB", "ADOSqlServer", "ADOPostgreSQL", "ADOMySQL", "DapperSqlServer",
         "DapperPostgreSQL", "DapperMySQL", "Caching", "CachingMemory", "CachingRedis", "CachingHybrid",
         "DistributedLockInMemory", "DistributedLockRedis", "DistributedLockSqlServer",
@@ -317,7 +317,7 @@ internal static class EventIdBlockRegistry
         "AzureServiceBus", "AmazonSQS", "RedisPubSub", "InMemory", "GRpc", "GraphQL", "SignalR", "Refit",
         "AwsLambda", "AzureFunctions", "Cdc", "CdcSqlServer", "CdcDebezium", "SecurityAudit", "SecuritySecrets",
         "SecuritySecretsAzureKeyVault", "SecuritySecretsAwsSecretsManager", "SecuritySecretsHashiCorpVault",
-        "SecuritySecretsGoogleCloudSecretManager", "CdcMySql", "MessagingRecoverability", "OpenTelemetry",
+        "SecuritySecretsGoogleCloudSecretManager", "CdcMySql", "OpenTelemetry",
         "Security", "SecurityPII", "ComplianceGDPR", "ComplianceConsent", "ComplianceDSR",
         "ComplianceLawfulBasis", "ComplianceAnonymization", "MartenGDPRCryptoShredding", "ComplianceRetention",
         "ComplianceDataResidency", "ComplianceBreachNotification", "ComplianceDPIA", "CompliancePrivacyByDesign",

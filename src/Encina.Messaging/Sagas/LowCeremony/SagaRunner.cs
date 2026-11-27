@@ -342,67 +342,67 @@ public sealed class SagaRunner : ISagaRunner
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 2888,
+        EventId = 11638,
         Level = LogLevel.Information,
         Message = "Low-ceremony saga {SagaId} started (type: {SagaType}, steps: {StepCount})")]
     public static partial void SagaStarted(ILogger logger, Guid sagaId, string sagaType, int stepCount);
 
     [LoggerMessage(
-        EventId = 2889,
+        EventId = 11639,
         Level = LogLevel.Debug,
         Message = "Saga {SagaId} executing step {StepNumber}: {StepName}")]
     public static partial void StepExecuting(ILogger logger, Guid sagaId, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 2890,
+        EventId = 11640,
         Level = LogLevel.Debug,
         Message = "Saga {SagaId} step {StepNumber} completed: {StepName}")]
     public static partial void StepCompleted(ILogger logger, Guid sagaId, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 2891,
+        EventId = 11641,
         Level = LogLevel.Warning,
         Message = "Saga {SagaId} step {StepNumber} failed: {StepName} - {ErrorCode}")]
     public static partial void StepFailed(ILogger logger, Guid sagaId, int stepNumber, string stepName, string errorCode);
 
     [LoggerMessage(
-        EventId = 2892,
+        EventId = 11642,
         Level = LogLevel.Information,
         Message = "Saga {SagaId} completed successfully ({StepsExecuted} steps)")]
     public static partial void SagaCompleted(ILogger logger, Guid sagaId, int stepsExecuted);
 
     [LoggerMessage(
-        EventId = 2893,
+        EventId = 11643,
         Level = LogLevel.Warning,
         Message = "Saga {SagaId} was cancelled")]
     public static partial void SagaCancelled(ILogger logger, Guid sagaId);
 
     [LoggerMessage(
-        EventId = 2894,
+        EventId = 11644,
         Level = LogLevel.Error,
         Message = "Saga {SagaId} failed with exception of type {ExceptionType}")]
     public static partial void SagaException(ILogger logger, Guid sagaId, string exceptionType, Exception exception);
 
     [LoggerMessage(
-        EventId = 2895,
+        EventId = 11645,
         Level = LogLevel.Debug,
         Message = "Step {StepNumber} ({StepName}) has no compensation defined")]
     public static partial void StepNoCompensation(ILogger logger, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 2896,
+        EventId = 11646,
         Level = LogLevel.Debug,
         Message = "Compensating step {StepNumber}: {StepName}")]
     public static partial void StepCompensating(ILogger logger, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 2897,
+        EventId = 11647,
         Level = LogLevel.Debug,
         Message = "Step {StepNumber} ({StepName}) compensation completed")]
     public static partial void StepCompensated(ILogger logger, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 2898,
+        EventId = 11648,
         Level = LogLevel.Error,
         Message = "Compensation failed for step {StepNumber} ({StepName}) with exception of type {ExceptionType}")]
     public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string exceptionType, Exception exception);

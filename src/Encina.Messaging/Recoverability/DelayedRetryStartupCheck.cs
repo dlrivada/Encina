@@ -11,7 +11,7 @@ namespace Encina.Messaging.Recoverability;
 /// <see cref="RecoverabilityOptions.EnableDelayedRetries"/> on, an <see cref="IDelayedRetryStore"/> and an
 /// <see cref="IDelayedRetryMessageFactory"/> and <see cref="IEncina"/> (the processor re-dispatches through it)
 /// must be registered, otherwise the application fails to start
-/// (ADR-050, Critical log with EventId 5457, see EventIdRanges.MessagingRecoverability).
+/// (ADR-050, Critical log with EventId 12057, see EventIdRanges.MessagingRecoverability).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -123,10 +123,10 @@ internal sealed class DelayedRetryStartupCheck : IHostedService
 internal static partial class DelayedRetryStartupCheckLog
 {
     /// <remarks>
-    /// Event IDs: 5450-5499 (see EventIdRanges.MessagingRecoverability).
+    /// Event IDs: 12050-12099 (see EventIdRanges.MessagingRecoverability).
     /// </remarks>
     [LoggerMessage(
-        EventId = 5457,
+        EventId = 12057,
         Level = LogLevel.Critical,
         Message = "Delayed retries are enabled but {Missing} is not registered. Register a delayed retry store and factory (AddEncinaDelayedRetryStore), register IEncina (AddEncina) or disable EnableDelayedRetries")]
     public static partial void StoreMissing(ILogger logger, string missing);

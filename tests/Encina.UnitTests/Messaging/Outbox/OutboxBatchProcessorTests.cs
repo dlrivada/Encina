@@ -61,7 +61,7 @@ public sealed class OutboxBatchProcessorTests
             Now.UtcDateTime.AddSeconds(5),
             Arg.Any<CancellationToken>());
         await _store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
-        _logger.EventIds.ShouldContain(2832);
+        _logger.EventIds.ShouldContain(11582);
     }
 
     [Theory]
@@ -131,7 +131,7 @@ public sealed class OutboxBatchProcessorTests
         await _store.Received(1).MarkAsExhaustedAsync(message.Id, "handler.rejected", 3, Arg.Any<CancellationToken>());
         await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
         await _store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
-        var entry = _logger.Entries.Single(e => e.EventId == 2958);
+        var entry = _logger.Entries.Single(e => e.EventId == 11708);
         entry.Level.ShouldBe(LogLevel.Error);
         entry.Message.ShouldContain(OutboxErrorCodes.MaxRetriesExceeded);
         entry.Message.ShouldContain(message.Id.ToString());
@@ -193,7 +193,7 @@ public sealed class OutboxBatchProcessorTests
             typeof(InvalidOperationException).FullName!,
             Now.UtcDateTime.AddSeconds(5),
             Arg.Any<CancellationToken>());
-        var logged = _logger.Entries.Single(e => e.EventId == 2832).Exception;
+        var logged = _logger.Entries.Single(e => e.EventId == 11582).Exception;
         logged.ShouldBeOfType<RedactedException>();
         logged!.Message.ShouldBe(typeof(InvalidOperationException).FullName);
         logged.ToString().ShouldNotContain(exception.Message);
@@ -211,7 +211,7 @@ public sealed class OutboxBatchProcessorTests
 
         await sut.ProcessAsync((_, _, _) => ValueTask.FromResult(Left<EncinaError, Unit>(error)), CancellationToken.None);
 
-        var entry = _logger.Entries.Single(e => e.EventId == 2832);
+        var entry = _logger.Entries.Single(e => e.EventId == 11582);
         entry.Exception.ShouldBeNull();
         entry.Message.ShouldContain("handler.timeout");
         entry.Message.ShouldNotContain("patient-123");
@@ -311,8 +311,8 @@ public sealed class OutboxBatchProcessorTests
         var result = await sut.ProcessAsync((_, _, _) => Delivered(), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 0, 1));
-        _logger.EventIds.ShouldNotContain(2831);
-        var entry = _logger.Entries.Single(e => e.EventId == 2961);
+        _logger.EventIds.ShouldNotContain(11581);
+        var entry = _logger.Entries.Single(e => e.EventId == 11711);
         entry.Level.ShouldBe(LogLevel.Error);
         entry.Message.ShouldContain(nameof(IOutboxStore.MarkAsProcessedAsync));
         entry.Message.ShouldContain(message.Id.ToString());
@@ -331,8 +331,8 @@ public sealed class OutboxBatchProcessorTests
         var result = await sut.ProcessAsync((_, _, _) => Rejected(), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 0, 1));
-        _logger.EventIds.ShouldNotContain(2832);
-        var entry = _logger.Entries.Single(e => e.EventId == 2961);
+        _logger.EventIds.ShouldNotContain(11582);
+        var entry = _logger.Entries.Single(e => e.EventId == 11711);
         entry.Message.ShouldContain(nameof(IOutboxStore.MarkAsFailedAsync));
         entry.Message.ShouldContain(message.Id.ToString());
     }
@@ -349,8 +349,8 @@ public sealed class OutboxBatchProcessorTests
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 0, 1));
         await _store.Received(1).MarkAsExhaustedAsync(message.Id, "handler.rejected", 3, Arg.Any<CancellationToken>());
-        _logger.EventIds.ShouldNotContain(2958);
-        _logger.EventIds.ShouldContain(2961);
+        _logger.EventIds.ShouldNotContain(11708);
+        _logger.EventIds.ShouldContain(11711);
     }
 
     [Fact]
@@ -375,7 +375,7 @@ public sealed class OutboxBatchProcessorTests
         published.ShouldBe(1);
         await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
         await _store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
-        _logger.Entries.Single(e => e.EventId == 2962).Message.ShouldContain(first.Id.ToString());
+        _logger.Entries.Single(e => e.EventId == 11712).Message.ShouldContain(first.Id.ToString());
     }
 
     [Fact]
@@ -395,7 +395,7 @@ public sealed class OutboxBatchProcessorTests
 
         Outcome(result).Total.ShouldBe(0);
         await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
-        _logger.EventIds.ShouldContain(2962);
+        _logger.EventIds.ShouldContain(11712);
     }
 
     [Fact]
