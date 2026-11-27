@@ -1,10 +1,10 @@
 using Encina.Messaging.Transactions;
 using Encina.MongoDB;
 using Encina.MongoDB.Inbox;
-using Encina.MongoDB.SoftDelete;
 using Encina.MongoDB.Sharding;
 using Encina.MongoDB.Sharding.Migrations;
 using Encina.MongoDB.Sharding.ReferenceTables;
+using Encina.MongoDB.SoftDelete;
 using Encina.MongoDB.Tenancy;
 using Encina.MongoDB.Transactions;
 using Encina.Sharding;
