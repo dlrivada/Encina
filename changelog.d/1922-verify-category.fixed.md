@@ -1,0 +1,1 @@
+- **Verify validation errors are detected by category** (#1922). `EncinaVerify.PrepareValidationError` in Encina.Testing.Verify now sets `IsValidationError` from the error's `ErrorCategory` (Validation) instead of an `encina.validation.` code prefix; hand-built errors that only carry an `encina.validation.*` code and no category now report `false`.

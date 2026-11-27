@@ -363,7 +363,7 @@ public static class EncinaVerify
         {
             Message = error.Message,
             Code = code,
-            IsValidationError = code?.StartsWith("encina.validation.", StringComparison.OrdinalIgnoreCase) ?? false
+            IsValidationError = error.GetCategory() == ErrorCategory.Validation
         };
     }
 
