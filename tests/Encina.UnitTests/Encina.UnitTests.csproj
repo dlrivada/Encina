@@ -3,6 +3,8 @@
   <PropertyGroup>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Encina.UnitTests</RootNamespace>
+    <!-- TUnit.Assertions would add global usings that make Assert ambiguous with xUnit's (#1922) -->
+    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
   </PropertyGroup>
 
   <!-- xUnit runner configuration for parallel execution -->
@@ -167,6 +169,9 @@
     <ProjectReference Include="..\..\src\Encina.Testing.Respawn\Encina.Testing.Respawn.csproj" />
     <ProjectReference Include="..\..\src\Encina.Testing.Testcontainers\Encina.Testing.Testcontainers.csproj" />
     <ProjectReference Include="..\..\src\Encina.Testing.Verify\Encina.Testing.Verify.csproj" />
+    <!-- Encina.Testing.TUnit cannot be referenced (its TUnit package adds global usings and a newer Microsoft.Testing.Platform); its assertions need only TUnit.Assertions, so the one file is compiled in (#1922). -->
+    <PackageReference Include="TUnit.Assertions" />
+    <Compile Include="..\..\src\Encina.Testing.TUnit\TUnitEitherAssertions.cs" Link="Testing\TUnit\Linked\TUnitEitherAssertions.cs" />
     <ProjectReference Include="..\..\src\Encina.Testing.WireMock\Encina.Testing.WireMock.csproj" />
     <ProjectReference Include="..\Encina.TestInfrastructure\Encina.TestInfrastructure.csproj" />
 
