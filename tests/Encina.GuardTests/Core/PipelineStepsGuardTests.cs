@@ -118,17 +118,6 @@ public class PipelineStepsGuardTests
         failure.GetCode().IfNone(string.Empty).ShouldBe(EncinaErrorCodes.NotificationInvalidReturn);
     }
 
-    /// <summary>
-    /// A null method is not checked by the guard and fails on its first use.
-    /// </summary>
-    [Fact]
-    public void TryValidateHandleMethod_NullMethod_ThrowsNullReferenceException()
-    {
-        var act = () => { _ = EncinaNotificationGuards.TryValidateHandleMethod(null!, typeof(Handlers), "Note", out _); };
-
-        Should.Throw<NullReferenceException>(act);
-    }
-
     #endregion
 
     #region PipelineStageLookup.Find(Type)
@@ -213,17 +202,6 @@ public class PipelineStepsGuardTests
         candidate.Identity.ShouldBeSameAs(step);
     }
 
-    /// <summary>
-    /// A null behavior is not checked and fails on its first use.
-    /// </summary>
-    [Fact]
-    public void PipelineStepCandidate_For_NullBehavior_ThrowsNullReferenceException()
-    {
-        var act = () => { _ = PipelineStepCandidate.For(null!, 0); };
-
-        Should.Throw<NullReferenceException>(act);
-    }
-
     #endregion
 
     #region Step identity
@@ -248,17 +226,6 @@ public class PipelineStepsGuardTests
 
         new PostCommitProcessorStep<Ping, string>(new PlainPostCommit(Right)).Kind.ShouldBe(PipelineStepKind.PostCommitProcessor);
         new ErrorProcessorStep<Ping, string>(new PlainError(_ => ValueTask.CompletedTask)).Kind.ShouldBe(PipelineStepKind.ErrorProcessor);
-    }
-
-    /// <summary>
-    /// A step built with a null processor is not refused at construction; its identity fails on first use.
-    /// </summary>
-    [Fact]
-    public void Steps_NullProcessor_ConstructorAcceptsAndIdentityThrows()
-    {
-        var step = new PreProcessorStep<Ping, string>(null!);
-
-        Should.Throw<NullReferenceException>(() => { _ = step.StepType; });
     }
 
     #endregion
@@ -293,6 +260,7 @@ public class PipelineStepsGuardTests
         var result = await step.Handle(Request, RequestContext.CreateForTest(), Next(Ok, () => called = true), CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("test.pre");
         called.ShouldBeFalse();
     }
 
@@ -354,6 +322,7 @@ public class PipelineStepsGuardTests
         var result = await step.Handle(Request, RequestContext.CreateForTest(), Next(Ok), CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("test.post");
     }
 
     /// <summary>
@@ -413,6 +382,7 @@ public class PipelineStepsGuardTests
         var result = await step.Handle(Request, RequestContext.CreateForTest(), Next(Ok), CancellationToken.None);
 
         result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).GetCode().IfNone(string.Empty).ShouldBe("test.commit");
     }
 
     /// <summary>

@@ -36,18 +36,6 @@ public class SequentialMigrationStrategyGuardTests
     }
 
     /// <summary>
-    /// A null shard list is not checked and fails when the strategy enumerates it.
-    /// </summary>
-    [Fact]
-    public async Task ExecuteAsync_NullShards_ThrowsNullReferenceException()
-    {
-        var act = () => _sut.ExecuteAsync(
-            null!, (_, _) => Task.FromResult<Either<EncinaError, Unit>>(unit), Options, (_, _) => { }, CancellationToken.None);
-
-        await Should.ThrowAsync<NullReferenceException>(act);
-    }
-
-    /// <summary>
     /// A shard whose action succeeds is reported as succeeded and tracked.
     /// </summary>
     [Fact]

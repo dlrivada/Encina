@@ -100,7 +100,9 @@ public class AmbientRequestContextAndStreamGuardTests
             items.Add(item);
         }
 
-        items.ShouldHaveSingleItem().IsLeft.ShouldBeTrue();
+        var item0 = items.ShouldHaveSingleItem();
+        item0.IsLeft.ShouldBeTrue();
+        ((EncinaError)item0).GetCode().IfNone(string.Empty).ShouldBe(EncinaErrorCodes.RequestNull);
     }
 
     /// <summary>
