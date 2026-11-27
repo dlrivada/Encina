@@ -15,14 +15,14 @@
 
 - `Encina.GoogleCloudPubSub` is not on `main` (only its plan is); the pull handler is a delegate passed to `SubscribeAsync` (#237 Design Choice 2), so there is no handler registry to dispatch to: the push endpoint takes the delegate as a parameter (Design Choice 7). The issue's snippet `MapEncinaGoogleCloudPubSubPush("/pubsub/orders", options => ...)` has no handler argument; this plan adds one.
 - The web layer: `Encina.AspNetCore` references the compliance, DPIA, audit and tenancy packages (`src/Encina.AspNetCore/Encina.AspNetCore.csproj`), too heavy for a transport; `Encina.Tenancy.AspNetCore` and `Encina.AspNetCore.Blazor` are the precedent for a small `X.AspNetCore` package with a `FrameworkReference` to `Microsoft.AspNetCore.App` and PublicAPI analyzers. `DPIAEndpointExtensions` is the precedent for an `Encina` endpoint-mapping extension.
-- Token library, verified on 2026-11-27 by downloading **Google.Apis.Auth 1.78.0** (Apache-2.0; arrives transitively through `Google.Api.Gax.Grpc` 4.16.0, a dependency of `Google.Cloud.PubSub.V1`): its XML documentation has `GoogleJsonWebSignature.ValidateAsync(string, ValidationSettings)` throwing `InvalidJwtException` for any failed check, `ValidationSettings.Audience` (**null suppresses audience validation**), `ValidationSettings.Clock` (an `IClock`), `IssuedAtClockTolerance`, `ExpirationTimeClockTolerance`, `ForceGoogleCertRefresh`, and `Payload.Email` and `Payload.EmailVerified`. The null-suppresses-audience behavior is why the options validator below makes the audience mandatory.
+- Token library, verified on 2026-11-27 by downloading **Google.Apis.Auth 1.78.0** (Apache-2.0; arrives transitively: `Google.Cloud.PubSub.V1` 3.40.0 needs `Google.Api.Gax.Grpc` 4.13.1 or later, which needs `Google.Apis.Auth` 1.73.0 or later, so a plain restore resolves 1.73.0 and the direct pin of 1.78.0 is an upgrade): its XML documentation has `GoogleJsonWebSignature.ValidateAsync(string, ValidationSettings)` throwing `InvalidJwtException` for any failed check, `ValidationSettings.Audience` (**null suppresses audience validation**), `ValidationSettings.Clock` (an `IClock`), `IssuedAtClockTolerance`, `ExpirationTimeClockTolerance`, `ForceGoogleCertRefresh`, and `Payload.Email` and `Payload.EmailVerified`. The null-suppresses-audience behavior is why the options validator below makes the audience mandatory.
 - Time comes from `TimeProvider` (AGENTS.md section 3): an internal `IClock` adapter over `TimeProvider` is passed through `ValidationSettings.Clock`.
 
-Delivered: package `Encina.GoogleCloudPubSub.AspNetCore` with `EncinaGoogleCloudPubSubPushOptions` (validated), `AddEncinaGoogleCloudPubSubPush`, `MapEncinaGoogleCloudPubSubPush<TMessage>`, an internal token verifier, a push envelope reader, a category-to-status mapper, log messages 40688-40689 (spare ids of the #237 block), a consume span and a counter, unit, guard, property, contract and integration tests, and documentation. Delivery stays at-least-once: a non-2xx answer makes Pub/Sub redeliver and, with a dead-letter policy, dead letter.
+Delivered: package `Encina.GoogleCloudPubSub.AspNetCore` with `EncinaGoogleCloudPubSubPushOptions` (validated), `AddEncinaGoogleCloudPubSubPush`, `MapEncinaGoogleCloudPubSubPush<TMessage>`, an internal token verifier, a push envelope reader, log messages (two ids of the #237 block, Phase 2 task 3), a consume span and a counter, unit, guard, property, contract and integration tests, and documentation. Delivery stays at-least-once: a non-2xx answer makes Pub/Sub redeliver and, with a dead-letter policy, dead letter.
 
 **Provider category**: Messaging transports (10 existing, 6 planned; AGENTS.md section 5); one cloud transport, tested with the emulator of #237 (SPEC-000 DEC-009). The AWS and Azure side of the cloud triangle has no push-signed-token counterpart in scope: EventBridge delivers to targets (#238).
 
-**Shared pieces**: #237 owns the transport, the client holder, `PubSubEmulatorFixture` and the spare ids 40688-40689; #240 owns the conformance base; #4543 owns the tenant header contract (the push path reads the attribute, it does not stamp). This plan owns the package `Encina.GoogleCloudPubSub.AspNetCore` (when D1 is answered A).
+**Shared pieces**: #237 owns the transport, the client holder, `PubSubEmulatorFixture` and its range 40680-40689, whose last two ids this plan needs (Phase 2 task 3); #240 owns the conformance base; #4543 owns the tenant header contract (the push path reads the attribute, it does not stamp). This plan owns the package `Encina.GoogleCloudPubSub.AspNetCore` (when D1 is answered A).
 
 ---
 
@@ -123,29 +123,30 @@ B costs nothing when unset and removes one replay path when set; A wins for the 
 
 ### Rationale
 
-Both options keep the opt-out explicit and logged as the rule requires, so the rule does not decide; A wins for security review, B wins if the maintainer wants the emulator to exercise the endpoint without a stub. The emulator probe (Phase 5) records whether it sends an `Authorization` header at all.
+Option A has no opt-out and option B has an explicit, logged one (AGENTS.md section 3); the rule allows both, so it does not decide; A wins for security review, B wins if the maintainer wants the emulator to exercise the endpoint without a stub. The emulator probe (Phase 5) records whether it sends an `Authorization` header at all.
 
 **Class:** Dilemma
 
 </details>
 
 <details>
-<summary><strong>6. Mapping an error category to the HTTP status (Dilemma D6)</strong></summary>
+<summary><strong>6. Mapping an error category to the HTTP status</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A small internal mapper in the new package for the five categories it produces (`Unauthenticated` 401, `Forbidden` 403, `Validation` 400, `Unavailable` 503, `Internal` 500) with an empty body, checked against the ADR-062 table by a unit test** | No dependency on `Encina.AspNetCore`; the body never carries an error message | A second mapping table beside `Encina.AspNetCore` |
-| **B) Use `ProblemDetailsExtensions.ToProblemDetails` of `Encina.AspNetCore`** | One mapping | A project reference to the heavy web package, and a ProblemDetails body Pub/Sub ignores |
+| **A) The core table `ErrorCategoryHttp` (`src/Encina/Errors/ErrorCategoryHttp.cs`: public `GetStatusCode` and `GetResponseHeaders`, which adds `WWW-Authenticate: Bearer` to a 401), with an empty body** | HTTP is written once in core (ADR-062); the new package references only `Encina`; the body never carries an error message | None |
+| **B) A mapper table in the new package** | None | A second copy of the table; drifts from ADR-062 |
 
-### Chosen Option: **A, an internal mapper** (recommended, pending the maintainer)
+### Chosen Option: **A, `ErrorCategoryHttp` from core**
 
 ### Rationale
 
-A wins for dependency weight and for a body that cannot leak anything; B wins if the application already references `Encina.AspNetCore` and wants one table. A 401 carries `WWW-Authenticate: Bearer` (ADR-062 header rules).
+ADR-062 states the HTTP mapping is written once in core as data and consumed by the hosts (`docs/architecture/adr/062-error-category-contract.md` line 58); a package-local table is the rejected option (b)/(c) of that ADR. The endpoint writes `GetStatusCode(error)` and the headers of `GetResponseHeaders(error, status)`, and nothing else.
 
-**Class:** Dilemma
+**Class:** Settled
+**Settled by:** ADR-062 (HTTP mapping written once in core) and `src/Encina/Errors/ErrorCategoryHttp.cs` lines 29, 83 and 117
 
 </details>
 
@@ -211,6 +212,48 @@ Errors are never swallowed (AGENTS.md section 3) and the service defines acknowl
 
 </details>
 
+<details>
+<summary><strong>10. Options per endpoint, validated when the endpoint is mapped</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `AddEncinaGoogleCloudPubSubPush` registers a defaults template, the verifier (stateless, options passed per call), `TimeProvider` and an internal registration marker; each `Map...` builds its own options from the template plus its `configure`, validates them with the validator when `Map` runs and throws `OptionsValidationException` at startup; `Map` throws `InvalidOperationException` at startup when the marker is missing** | An audience unique per endpoint (the issue's own snippet sets it inside `Map`); a misconfiguration fails at startup, never as a request-time 500 | The defaults template is not validated on its own (it may legitimately lack an audience) |
+| **B) One global `IOptions` with `ValidateOnStart` and a singleton verifier reading it** | One place | One audience for every endpoint; values set in `Map` escape validation; a missing registration fails on the first request |
+
+### Chosen Option: **A, per-endpoint options validated at mapping time**
+
+### Rationale
+
+Registration completeness requires every option type and dependency a service resolves to be registered and proven by a DI test (AGENTS.md section 3), and a gate with missing context denies; only A makes both hold for an audience set per endpoint. The DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`; endpoint tests prove that `Map` without the registration and `Map` with an empty audience throw at startup.
+
+**Class:** Settled
+**Settled by:** AGENTS.md section 3 (registration completeness; gates fail closed) and #4544 (the audience is set inside the `Map` call)
+
+</details>
+
+<details>
+<summary><strong>11. Body size limit and acknowledgement deadline</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `MaxBodyBytes` is mandatory and defaults to 16 MiB, above the largest push body (the service's 10 MB message limit, base64-encoded and wrapped, is about 13.4 MB); a body over it is `Validation` (400); the documentation states that a handler running past the subscription's acknowledgement deadline makes the service redeliver the message** | Bounded memory for every request; the redelivery risk is documented, deduplication is the inbox's | A fixed default |
+| **B) No limit** | Simplest | An authenticated sender can make the endpoint buffer an unbounded body |
+
+### Chosen Option: **A, a mandatory limit**
+
+### Rationale
+
+Pub/Sub documents a 10 MB maximum message size (named comparable product), and an unbounded read is excluded by the fail-closed rule for a security endpoint (AGENTS.md section 3).
+
+**Class:** Settled
+**Settled by:** Google Cloud Pub/Sub quota documentation (10 MB message limit) and AGENTS.md section 3
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -220,10 +263,10 @@ Errors are never swallowed (AGENTS.md section 3) and the service defines acknowl
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.GoogleCloudPubSub.AspNetCore/Encina.GoogleCloudPubSub.AspNetCore.csproj` (`FrameworkReference Microsoft.AspNetCore.App`, `PackageReference Google.Apis.Auth`, project references to `Encina.GoogleCloudPubSub` and `Encina`, `Microsoft.CodeAnalysis.PublicApiAnalyzers`, `InternalsVisibleTo Encina.UnitTests`), `Encina.slnx` entry, `Directory.Packages.props` entry for `Google.Apis.Auth` 1.78.0, `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` (through `mechanical-fixer`).
-2. `EncinaGoogleCloudPubSubPushOptions`: `Audience`, `AllowedServiceAccounts`, `ExpectedSubscription`, `MaxBodyBytes` (default 16 MiB, validated above zero: a 10 MB message base64-encoded and wrapped is about 13.4 MB, to confirm against vendor documentation), `ClockSkew` (default one minute, validated 0 to 5 minutes). The class holds no secret (audience and account emails are public identifiers), so the `[JsonIgnore]` rule does not apply. Internal `EncinaGoogleCloudPubSubPushOptionsValidator : IValidateOptions<>` (Design Choice 8).
-3. `AddEncinaGoogleCloudPubSubPush(this IServiceCollection, Action<EncinaGoogleCloudPubSubPushOptions>? configure = null)`: options with `ValidateOnStart`, `TryAddEnumerable` of the validator, `TryAddSingleton(TimeProvider.System)`; the verifier is registered in pull request 2, so this pull request builds alone.
-4. Tests: validator and options unit tests, DI unit test under `ValidateOnBuild` and `ValidateScopes`, `GoogleCloudPubSubPushGuardTests` (null `services`; null `configure` accepted), `UnitTests.csproj` and `GuardTests.csproj` references, the manifest `Encina.GoogleCloudPubSub.AspNetCore.json` with package-level targets and the per-file targets of Phase 6 (`coverage-report.cs --check-justifications` fails a manifest without them). 14 files in all.
+1. `src/Encina.GoogleCloudPubSub.AspNetCore/Encina.GoogleCloudPubSub.AspNetCore.csproj` (`FrameworkReference Microsoft.AspNetCore.App`, `PackageReference Google.Apis.Auth`, project references to `Encina.GoogleCloudPubSub` and `Encina`, `Microsoft.CodeAnalysis.PublicApiAnalyzers`, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`, `Encina.ContractTests` and `DynamicProxyGenAssembly2`, so the stub verifier of pull request 4 and the property tests need no later csproj edit), `Encina.slnx` entry, `Directory.Packages.props` entry for `Google.Apis.Auth` 1.78.0, `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` (through `mechanical-fixer`).
+2. `EncinaGoogleCloudPubSubPushOptions`: `Audience`, `AllowedServiceAccounts`, `ExpectedSubscription`, `MaxBodyBytes` (default 16 MiB, validated above zero, Design Choice 11), `ClockSkew` (default one minute, validated 0 to 5 minutes). The class holds no secret (audience and account emails are public identifiers), so the `[JsonIgnore]` rule does not apply. Internal `EncinaGoogleCloudPubSubPushOptionsValidator : IValidateOptions<>` (Design Choice 8).
+3. `AddEncinaGoogleCloudPubSubPush(this IServiceCollection, Action<EncinaGoogleCloudPubSubPushOptions>? configure = null)` (Design Choice 10): registers the defaults template (`IOptions<>`, not validated on its own), `TryAddSingleton(TimeProvider.System)` and the internal registration marker; the validator is applied to each endpoint's effective options by `Map` in pull request 3; the verifier is registered in pull request 2, so this pull request builds alone.
+4. Tests: validator and options unit tests, DI unit test under `ValidateOnBuild` and `ValidateScopes`, `GoogleCloudPubSubPushGuardTests` (null `services`; null `configure` accepted), `UnitTests.csproj` and `GuardTests.csproj` references, the manifest `Encina.GoogleCloudPubSub.AspNetCore.json` with package-level targets and the per-file targets of Phase 6 (`coverage-report.cs --check-justifications` fails a manifest without them). 15 files, counted by name: csproj, options, validator, DI, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, validator test, DI test, guard test.
 
 </details>
 
@@ -231,7 +274,7 @@ Errors are never swallowed (AGENTS.md section 3) and the service defines acknowl
 <summary>Prompt for AI Agents — Phase 1</summary>
 
 ```text
-CONTEXT: Encina.Tenancy.AspNetCore is the small X.AspNetCore precedent. Google.Apis.Auth 1.78.0 comes transitively with Google.Cloud.PubSub.V1 and must be pinned for a direct reference.
+CONTEXT: Encina.Tenancy.AspNetCore is the small X.AspNetCore precedent. Google.Apis.Auth arrives transitively with Google.Cloud.PubSub.V1 and must be pinned (1.78.0) for a direct reference. Options are per endpoint and validated when Map runs.
 TASK: Create the package skeleton, the validated options and AddEncinaGoogleCloudPubSubPush with unit and guard tests.
 KEY RULES: audience and at least one allowed account are mandatory (startup fails otherwise); TryAdd registrations only; DI test with ValidateOnBuild and ValidateScopes; no Obsolete; PublicAPI files for public types.
 REFERENCE FILES: src/Encina.Tenancy.AspNetCore/, docs/plans for #237 (options and DI), .github/coverage-manifest/Encina.Tenancy.AspNetCore.json.
@@ -244,10 +287,10 @@ REFERENCE FILES: src/Encina.Tenancy.AspNetCore/, docs/plans for #237 (options an
 <details>
 <summary>Tasks</summary>
 
-1. Internal `IPushTokenVerifier.VerifyAsync(string? authorizationHeader, CancellationToken)` returning `Either<EncinaError, PushPrincipal>` and `GoogleJwtPushTokenVerifier` (singleton; `IOptions<>`, `TimeProvider`): parses `Bearer <jwt>` (missing or not Bearer: `GOOGLEPUBSUB_PUSH_TOKEN_MISSING`), calls `GoogleJsonWebSignature.ValidateAsync` with `Audience` from the options, `Clock` from an internal `TimeProviderClock : IClock`, and the tolerances from `ClockSkew`; `InvalidJwtException` becomes `GOOGLEPUBSUB_PUSH_TOKEN_INVALID`; any other exception (network, certificate fetch) becomes `GOOGLEPUBSUB_PUSH_VERIFIER_UNAVAILABLE`; then requires `Payload.EmailVerified` and the email in `AllowedServiceAccounts` (ordinal, ignoring case), else `GOOGLEPUBSUB_PUSH_PRINCIPAL_DENIED`. The static library call sits behind an internal delegate so unit tests substitute it. The token and the header are never logged.
+1. Internal `IPushTokenVerifier.VerifyAsync(string? authorizationHeader, EncinaGoogleCloudPubSubPushOptions endpointOptions, CancellationToken)` returning `Either<EncinaError, PushPrincipal>` and `GoogleJwtPushTokenVerifier` (singleton, stateless, `TimeProvider`; the options of the calling endpoint are passed on each call, Design Choice 10): parses `Bearer <jwt>` (missing or not Bearer: `GOOGLEPUBSUB_PUSH_TOKEN_MISSING`), calls `GoogleJsonWebSignature.ValidateAsync` with `Audience` from the options, `Clock` from an internal `TimeProviderClock : IClock`, and the tolerances from `ClockSkew`; `InvalidJwtException` becomes `GOOGLEPUBSUB_PUSH_TOKEN_INVALID`; any other exception (network, certificate fetch) becomes `GOOGLEPUBSUB_PUSH_VERIFIER_UNAVAILABLE`; then requires `Payload.EmailVerified` and the email in `AllowedServiceAccounts` (ordinal, ignoring case), else `GOOGLEPUBSUB_PUSH_PRINCIPAL_DENIED`. The static library call sits behind an internal delegate so unit tests substitute it. `ValidateAsync` takes no `CancellationToken`: the call is awaited with `.WaitAsync(cancellationToken)`, so a request abort propagates as `OperationCanceledException` (the library work may finish in the background and its result is discarded). The issuer check (Google's issuers) and the accepted signature algorithms are the library's defaults; the verifier tests prove it with tokens signed with `alg=none` and HS256, which must be rejected as invalid. A missing `Authorization` header is `Unauthenticated` (R6, no identity), which takes precedence over R3's "missing header is InvalidRequest". The token and the header are never logged.
 2. Codes in `GoogleCloudPubSubPushErrorCodes.cs` (ADR-062): `..._TOKEN_MISSING` and `..._TOKEN_INVALID` `Unauthenticated` (R6, no identity); `..._PRINCIPAL_DENIED` `Forbidden` (R6; `Unauthenticated` if D3 is answered B); `..._VERIFIER_UNAVAILABLE` `Unavailable` (R7); constant messages; `OperationCanceledException` propagates.
-3. `Log.cs` 40688 (request rejected: error code and category only, level Information so unauthenticated traffic cannot flood Warning) and 40689 (handler failed, added in pull request 3); both are the spare ids inside `EventIdRanges.GoogleCloudPubSub` (40680-40689) registered by #237, so no new range is created; the `AssemblyRanges` entry of `EncinaEventIdAllocationTests.cs` maps `Encina.GoogleCloudPubSub.AspNetCore` to the `GoogleCloudPubSub` field (if the #237 implementation has used 40688 or 40689 first, the ids are to be assigned by the orchestrator). DI edit (`TryAddSingleton<IPushTokenVerifier, GoogleJwtPushTokenVerifier>`) with the resolution test.
-4. Tests: `GoogleJwtPushTokenVerifierTests` (missing, malformed, invalid, unavailable, unverified email, other email, allowed email, tolerance and clock from a `FakeTimeProvider`), DI test edit, manifest edit. 9 files (verifier, codes, `Log`, allocation test, DI edit, DI test edit, verifier test, guard edit if any public member, manifest).
+3. `Log.cs` 40688 (request rejected: error code and category only, level Information so unauthenticated traffic cannot flood Warning) and 40689 (handler failed, added in pull request 3); the two ids are the last two of `EventIdRanges.GoogleCloudPubSub` (40680-40689), which #237's plan keeps for its own health and loop faults (line 450 of its plan); they are proposed here only if #237's plan is amended to release them, otherwise the ids are to be assigned by the orchestrator. Either way the `AssemblyRanges` entry of `EncinaEventIdAllocationTests.cs` maps `Encina.GoogleCloudPubSub.AspNetCore` to the range's field. DI edit (`TryAddSingleton<IPushTokenVerifier, GoogleJwtPushTokenVerifier>`) with the resolution test.
+4. Tests: `GoogleJwtPushTokenVerifierTests` (missing, malformed, invalid, `alg=none`, HS256, unavailable, unverified email, other email, allowed email, tolerance and clock from a `FakeTimeProvider`), `TimeProviderClockTests`, DI test edit, manifest edit. 10 files, by name: verifier (with `IPushTokenVerifier` and `PushPrincipal`), `TimeProviderClock`, error codes, `Log`, allocation test, DI edit, DI test edit, verifier test, clock test, manifest.
 
 </details>
 
@@ -269,9 +312,9 @@ REFERENCE FILES: src/Encina/Abstractions/IRequestContext.cs for TimeProvider use
 <summary>Tasks</summary>
 
 1. Internal `PushEnvelope` records and `PushEnvelopeReader`: reads the body with a hard limit of `MaxBodyBytes` (the token is verified before the body is read, so an unauthenticated caller cannot make the endpoint buffer a large body), then the push format of the service (`message.data` base64, `message.attributes`, `message.messageId`, `message.publishTime`, `message.orderingKey`, `subscription`, `deliveryAttempt`), decodes the data and deserializes `TMessage` with the serializer of the pull path (#237 Design Choice 8). A malformed envelope or data is `GOOGLEPUBSUB_PUSH_ENVELOPE_INVALID` `Validation` (R3).
-2. `GoogleCloudPubSubPushEndpointExtensions.MapEncinaGoogleCloudPubSubPush<TMessage>(this IEndpointRouteBuilder endpoints, string pattern, Func<TMessage, ValueTask> handler, Action<EncinaGoogleCloudPubSubPushOptions>? configure = null)` (public, returns `IEndpointConventionBuilder`; the route is a POST): verifier, then the optional subscription check (D4), envelope, handler, then 204. A handler exception is `GOOGLEPUBSUB_PUSH_HANDLER_FAILED` `Internal` (R4), logged as 40689 with `ForLogging()`. The internal status mapper (D6) writes the status and, for 401, `WWW-Authenticate: Bearer`; the body is empty.
+2. `GoogleCloudPubSubPushEndpointExtensions.MapEncinaGoogleCloudPubSubPush<TMessage>(this IEndpointRouteBuilder endpoints, string pattern, Func<TMessage, ValueTask> handler, Action<EncinaGoogleCloudPubSubPushOptions>? configure = null)` (public, returns `IEndpointConventionBuilder`; the route is a POST): when `Map` runs it throws `InvalidOperationException` if `AddEncinaGoogleCloudPubSubPush` was not called, builds the endpoint's options from the defaults template plus `configure` and throws `OptionsValidationException` when the validator rejects them (Design Choice 10); per request: verifier, then the optional subscription check (D4), envelope, handler, then 204. A handler exception is `GOOGLEPUBSUB_PUSH_HANDLER_FAILED` `Internal` (R4), logged as 40689 with `ForLogging()`. The status and headers come from `ErrorCategoryHttp.GetStatusCode` and `GetResponseHeaders` of core (Design Choice 6), including `WWW-Authenticate: Bearer` on a 401; the body is empty. New codes `GOOGLEPUBSUB_PUSH_ENVELOPE_INVALID`, `..._HANDLER_FAILED` and `..._SUBSCRIPTION_MISMATCH` are added to `GoogleCloudPubSubPushErrorCodes.cs`, log 40689 to `Log.cs`, and the new public method to `PublicAPI.Unshipped.txt`.
 3. Telemetry: the span `googlecloudpubsub push` (kind Consumer) on the transport's `ActivitySource` named `Encina.GoogleCloudPubSub` (registered in `Encina.OpenTelemetry` by #237), linked to the producer through the `traceparent` attribute with no baggage (ADR-054 D2); counter `googlecloudpubsub.push.received` with tags `outcome` and `reason` (the error code); the tenant tag `encina.tenant_id` only when `MultiTenancyMarker` is registered and the `encinatenantid` attribute of #4543 is present (ADR-054 D4). `Encina.GoogleCloudPubSub.csproj` gains `InternalsVisibleTo Encina.GoogleCloudPubSub.AspNetCore` to reuse the source and metrics.
-4. Tests: `PushEnvelopeReaderTests` (unit), `PushEnvelopeReaderPropertyTests` (FsCheck: base64 round trip of arbitrary payloads and attributes), `GoogleCloudPubSubPushEndpointTests` (unit over `TestServer`, which `Encina.UnitTests` references: 401 and nothing dispatched without a token, 403, 400, 503, 500, 204), `PushStatusMapperTests` (parity with the ADR-062 table), guard edit (null `endpoints`, `pattern`, `handler`), manifest edit. 12 files.
+4. Tests: `PushEnvelopeReaderTests` (unit), `PushEnvelopeReaderPropertyTests` (FsCheck: base64 round trip of arbitrary payloads and attributes), `GoogleCloudPubSubPushEndpointTests` (unit over `TestServer`, which `Encina.UnitTests` references: 401 and nothing dispatched without a token, 403, 400, 503, 500, 204), `GoogleCloudPubSubPushTelemetryTests`, tests that `Map` throws at startup without the registration and with an empty audience, guard edit (null `endpoints`, `pattern`, `handler`), manifest edit. 15 files, by name: envelope records, reader, endpoint extensions, telemetry, error codes edit, `Log` edit, `PublicAPI.Unshipped.txt` edit, transport csproj edit (`InternalsVisibleTo`), reader test, reader property test, endpoint test, telemetry test, guard edit, `PropertyTests.csproj` reference, manifest.
 
 </details>
 
@@ -280,7 +323,7 @@ REFERENCE FILES: src/Encina/Abstractions/IRequestContext.cs for TimeProvider use
 
 ```text
 CONTEXT: The verifier and options exist. The service pushes POST bodies with an OIDC token; any non-2xx answer is a nack.
-TASK: Implement the envelope reader, the endpoint mapping, the status mapper and the telemetry, with unit, property and guard tests.
+TASK: Implement the envelope reader, the endpoint mapping and the telemetry, with unit, property and guard tests.
 KEY RULES: verify the token before reading the body; a handler exception never escapes the endpoint; nothing is dispatched on any Left; no payload, attribute value, token or message id in logs or tags; the body of every response is empty; 401 carries WWW-Authenticate.
 REFERENCE FILES: src/Encina.AspNetCore/DPIAEndpointExtensions.cs, docs/plans for #237 (attributes, serializer), src/Encina.Messaging/Diagnostics/OutboxActivitySource.cs.
 ```
@@ -316,7 +359,7 @@ REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/062-error-category-c
 
 1. First task, a probe: `GoogleCloudPubSubPushProbeTests` records whether the emulator of #237 delivers push requests to a reachable URL (the fixture exposes the test host through `Testcontainers` host port exposure) and whether it sends an `Authorization` header; the integration targets below hold when it does, and a feature the emulator does not support is asserted at the unit level and named in the test, never skipped silently.
 2. `GoogleCloudPubSubPushIntegrationTests` in the `PubSubEmulator` collection of #237 (`[Trait("Category","Integration")]`, `[Trait("Transport","GoogleCloudPubSub")]`): a real publish reaches the handler through the endpoint with a stub `IPushTokenVerifier` registered in the test host (D5 A), and a request with no token dispatches nothing.
-3. `GoogleCloudPubSubPushConformanceTests` in `tests/Encina.ContractTests/MessageBrokers/GoogleCloudPubSub/`: the receive scenarios of the conformance base of #240 (message-id round trip, failure then non-2xx) over `TestServer`; `ContractTests.csproj` gains the `Microsoft.AspNetCore.App` framework reference and the `TestHost` package reference (it has neither today), `IntegrationTests.csproj` the project reference. 8 files with the fixture edit and the manifest edit.
+3. `GoogleCloudPubSubPushConformanceTests` in `tests/Encina.ContractTests/MessageBrokers/GoogleCloudPubSub/`: the receive scenarios of the conformance base of #240 (message-id round trip, failure then non-2xx) over `TestServer`; `ContractTests.csproj` gains the `Microsoft.AspNetCore.App` framework reference and the `TestHost` package reference (it has neither today), `IntegrationTests.csproj` the project reference (the `InternalsVisibleTo` grants for the stub verifier are already in pull request 1). 7 files, by name: fixture edit, probe test, integration test, conformance test, `ContractTests.csproj`, `IntegrationTests.csproj`, manifest. The contract and integration targets of the endpoint file are entered here.
 
 </details>
 
@@ -342,12 +385,15 @@ Per-file targets (entered in `Encina.GoogleCloudPubSub.AspNetCore.json` by the p
 | Pull request | File | unit | guard | contract | property | integration | Justification |
 |---|---|:---:|:---:|:---:|:---:|:---:|---|
 | 1 | `EncinaGoogleCloudPubSubPushOptions.cs`, validator | 100 | 0 | 0 | 0 | 0 | Pure data and validation; guard tests have no argument to check. |
-| 1 | `ServiceCollectionExtensions.cs` | 85 | 10 | 0 | 0 | 0 | Unit tests build the provider per option set; guard reaches the null check of `services`. |
+| 1 | `ServiceCollectionExtensions.cs` | 85 | 15 | 0 | 0 | 0 | Unit tests build the provider per option set; guard reaches the null check of `services`, a small share of a short file. |
 | 2 | `GoogleJwtPushTokenVerifier.cs` | 90 | 0 | 0 | 0 | 0 | An internal type: the seam reaches every branch; guard tests cannot reach it. |
+| 2 | `TimeProviderClock.cs` | 100 | 0 | 0 | 0 | 0 | Two members over `TimeProvider`, covered by `TimeProviderClockTests`; internal, so guard has nothing to reach. |
 | 2 | `GoogleCloudPubSubPushErrorCodes.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 | Constants and generated delegates have no executable lines. |
+| 3 | `PushEnvelope.cs` (records) | 0 | 0 | 0 | 0 | 0 | Positional records with no executable logic; exercised through the reader tests. |
 | 3 | `PushEnvelopeReader.cs` | 95 | 0 | 0 | 50 | 0 | Unit tests cover each malformed shape; the property test round-trips payloads. |
-| 3 | `GoogleCloudPubSubPushEndpointExtensions.cs` | 85 | 20 | 50 | 0 | 60 | `TestServer` tests reach each status; guard reaches the three argument checks; conformance and the emulator run the happy path. |
-| 3 | `PushStatusMapper.cs` | 100 | 0 | 0 | 0 | 0 | A pure table, tested against ADR-062. |
+| 3 | `GoogleCloudPubSubPushTelemetry.cs` | 80 | 0 | 0 | 0 | 0 | The telemetry tests assert the span, the counter and the absence of the tenant tag with tenancy off; internal, so guard has nothing to reach. |
+| 3 | `GoogleCloudPubSubPushEndpointExtensions.cs` | 85 | 20 | 0 | 0 | 0 | `TestServer` tests reach each status and the two startup failures; guard reaches the three argument checks. Contract and integration are entered in pull request 4. |
+| 4 | `GoogleCloudPubSubPushEndpointExtensions.cs` | 85 | 20 | 50 | 0 | 60 | The conformance subclass and the emulator test land in this pull request and run the happy path and the failure answers. |
 
 1. `src/Encina.GoogleCloudPubSub.AspNetCore/README.md` and the Push section of the Pub/Sub feature page (the page of #237's documentation pull request; when it is not on `main` the README carries the section) through `docs-writer`; `changelog.d/4544-google-cloud-pubsub-push.added.md` through `mechanical-fixer`; load and benchmark justification files `tests/Encina.LoadTests/Messaging/GoogleCloudPubSubPush/GoogleCloudPubSubPush.md` and the benchmark twin (throughput is the service's and the token library's). 5 files.
 2. `dotnet build --configuration Release` with zero warnings; every flag at its target; CRAP of every new method at most 10.
@@ -387,26 +433,26 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, ch
 | `Encina.Tenancy.AspNetCore` | `src/Encina.Tenancy.AspNetCore/` | Small `X.AspNetCore` package precedent |
 | `DPIAEndpointExtensions` | `src/Encina.AspNetCore/DPIAEndpointExtensions.cs` | Endpoint mapping precedent |
 | `MultiTenancyMarker` | `src/Encina/Abstractions/MultiTenancyMarker.cs` | Tenant tag gate |
-| Plan of #237 | `docs/plans/` | Transport, serializer, attributes, emulator fixture, spare ids |
+| Plan of #237 | `docs/plans/` | Transport, serializer, attributes, emulator fixture, range 40680-40689 |
 
 ### Event ID Allocation
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.GoogleCloudPubSub.AspNetCore` (uses the registered `GoogleCloudPubSub` range) | 40688-40689 | 40688 request rejected, 40689 handler failed; the two spare ids of #237's 40680-40689 (its ids 40680-40687 are claimed); no new range |
+| `Encina.GoogleCloudPubSub.AspNetCore` (uses the registered `GoogleCloudPubSub` range) | 40688-40689 (proposed) | 40688 request rejected, 40689 handler failed; #237's plan keeps these two for its own health and loop faults, so they are proposed only if that plan is amended, otherwise to be assigned by the orchestrator; no new range |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production code | 11 | csproj, options, validator, DI, verifier, codes, `Log`, envelope, reader, endpoint, mapper |
-| Tests | 14 | options, validator, DI, verifier, reader, property, endpoint, mapper, guard, probe, integration, conformance, 2 csproj edits |
+| Production code | 12 | csproj, options, validator, DI, verifier, clock, codes, `Log`, envelope, reader, telemetry, endpoint |
+| Tests | 16 | options, validator, DI, verifier, clock, reader, property, endpoint, telemetry, guard, probe, integration, conformance, 3 csproj edits |
 | Shared edits | 7 | `Encina.slnx`, `Directory.Packages.props`, 2 test csproj, `ContractTests.csproj`, `IntegrationTests.csproj`, allocation test |
 | Documentation and manifests | 8 | README, feature page, changelog, 2 justification files, 2 PublicAPI files, manifest |
-| **Pull request 1** | **14** | about 600 lines |
-| **Pull request 2** | **9** | about 500 lines |
-| **Pull request 3** | **12** | about 900 lines |
-| **Pull request 4** | **8** | about 450 lines |
+| **Pull request 1** | **15** | about 600 lines |
+| **Pull request 2** | **10** | about 500 lines |
+| **Pull request 3** | **15** | about 1000 lines |
+| **Pull request 4** | **7** | about 450 lines |
 | **Pull request 5** | **5** | about 200 lines |
 
 Implementers and callers: all types are new, so there are no implementers or `new X(` sites to update; the edit of the transport csproj is additive. Each pull request builds alone in the order 1 to 5.
@@ -421,7 +467,7 @@ Implementers and callers: all types are new, so there are no implementers or `ne
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). #237 provides the Pub/Sub pull transport.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options (audience and allowed accounts mandatory), DI; PR2 token verifier over GoogleJsonWebSignature behind a seam, codes, log 40688; PR3 envelope reader, endpoint mapping, status mapper, telemetry, log 40689; PR4 emulator probe, integration and conformance tests; PR5 documentation. Dilemmas D1 to D7 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options (audience and allowed accounts mandatory), DI; PR2 token verifier over GoogleJsonWebSignature behind a seam, codes, log 40688; PR3 envelope reader, endpoint mapping, status mapper, telemetry, log 40689; PR4 emulator probe, integration and conformance tests; PR5 documentation. Dilemmas D1 to D5 and D7 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: fail closed (any Left dispatches nothing); verify before reading the body; no token, email, payload or exception message in logs; named ADR-062 category on every error; TimeProvider through ValidationSettings.Clock; cancellation never a Left; targets never go down; CRAP <= 10.
 
@@ -438,7 +484,7 @@ REFERENCE FILES: docs/plans for #237, src/Encina.Tenancy.AspNetCore, src/Encina.
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Signing certificates are cached by the token library; Encina caches nothing. |
 | 2 | OpenTelemetry | ✅ | Consume span, counter, tenant tag only when tenancy is on (Phase 3). |
-| 3 | Structured Logging | ✅ | 40688-40689, error code and exception type only. |
+| 3 | Structured Logging | ✅ | Two ids (Phase 2 task 3), error code and exception type only. |
 | 4 | Health Checks | ❌ | No dependency of its own; the transport's health check of #237 covers the topic. |
 | 5 | Validation | ✅ | Options, token, envelope and body size are validated. |
 | 6 | Resilience | ⏭️ | No consumer loop here; consumer-side resilience is #4392 (open); the certificate fetch retries are the library's. |
@@ -461,7 +507,7 @@ REFERENCE FILES: docs/plans for #237, src/Encina.Tenancy.AspNetCore, src/Encina.
 
 ## Next Steps
 
-1. Ask the maintainer D1 to D7 when work on #4544 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: package skeleton (14 files).
-3. Pull requests 2 and 3: token verification (9), envelope, endpoint and telemetry (12).
-4. Pull requests 4 and 5: emulator and conformance tests (8), documentation (5).
+1. Ask the maintainer D1 to D5 and D7 when work on #4544 starts; record the answers in `## Maintainer Decisions`.
+2. Pull request 1: package skeleton (15 files).
+3. Pull requests 2 and 3: token verification (10), envelope, endpoint and telemetry (15).
+4. Pull requests 4 and 5: emulator and conformance tests (7), documentation (5).
