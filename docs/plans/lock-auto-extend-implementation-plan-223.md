@@ -3,7 +3,7 @@
 > **Issue**: [#223](https://github.com/dlrivada/Encina/issues/223)
 > **Type**: Feature
 > **Complexity**: Medium (a background renewal loop per handle, a decorator, a pipeline integration, 5 pull requests)
-> **Estimated Scope**: ~700 lines of production code + ~1,500 lines of tests (about 3,600 lines over 5 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
+> **Estimated Scope**: ~900 lines of production code + ~3,300 lines of tests, manifests and docs (about 4,200 lines over 5 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
 > **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027, AC-027; [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D3, D4, D6.3; [ADR-062](../architecture/adr/062-error-category-contract.md)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (implements ADR-052 and makes every provider return `ILockHandle`; open, not a pending maintainer decision); PR 3 needs PR 2 of [#220](https://github.com/dlrivada/Encina/issues/220) (the behavior it extends); [#2405](https://github.com/dlrivada/Encina/issues/2405) (open bug: the SQL Server lock ignores its expiry) is a stated prerequisite for any SQL Server claim
 > **Related**: family `lock-pipeline` (#220, #221, #224, #225); #216 (leader election renews its own lease with the same `ExtendAsync` rule), #218 (fencing tokens), #724, #741, #2653 (duplicate lock providers in the caching packages)
@@ -14,7 +14,7 @@
 
 A lock with an expiry protects a handler only while the handler is faster than the expiry. For variable workloads the choices today are an over-long expiry (a crashed holder blocks everyone) or manual `ExtendAsync` calls in every handler. This plan adds **automatic renewal** to `Encina.DistributedLock`:
 
-1. **Handle wrapper.** `AutoExtendingLockHandle` (internal) wraps any `ILockHandle`, renews it every `Interval` through the ownership-checked `ILockHandle.ExtendAsync`, and exposes `IAutoExtendingLockHandle.LockLostToken` (public interface extending `ILockHandle`), cancelled when the lock is lost.
+1. **Handle wrapper.** `AutoExtendingLockHandle` (internal, created through the public `IDistributedLockAutoExtender`, Design Choice 7) wraps any `ILockHandle`, renews it every `Interval` through the ownership-checked `ILockHandle.ExtendAsync`, and exposes `IAutoExtendingLockHandle.LockLostToken` (public interface extending `ILockHandle`), cancelled when the lock is lost.
 2. **Safe accounting.** The local lease expiry is the time read **before** the extend call plus the duration; if no extension is confirmed before that instant the lock is declared lost (fail closed, Design Choice 4). A definite `Right(false)` (not held any more) is lost at once.
 3. **Global switch.** `AddEncinaDistributedLockAutoExtend(...)` decorates the registered provider so every acquired lock renews itself (option `AutoExtendLocks`, default false).
 4. **Per-lock switch.** `[DistributedLock("resource", AutoExtend = LockAutoExtendMode.Enabled, AutoExtendIntervalSeconds = 5)]` (#220's attribute) wraps only that request's lock; the behavior returns `Left` `lock_pipeline.lock_lost` when the lock was lost while the handler ran and exposes the token to handlers (Design Choice 2).
@@ -33,7 +33,7 @@ A lock with an expiry protects a handler only while the handler is faster than t
 - The issue's sketch uses `new Timer(async _ => ...)`: an `async` lambda here is `async void`, an exception in it ends the process (`AGENTS.md` section 3), and overlapping ticks are possible; this plan uses a sequential `PeriodicTimer` loop.
 - Implementers: this plan adds **no member to `ILockHandle` or `IDistributedLockProvider`**; it adds the new interface `IAutoExtendingLockHandle : ILockHandle` that only the wrapper implements. The five existing provider classes (InMemory, Redis, SQL Server, `Encina.Caching.Memory/MemoryDistributedLockProvider.cs:21`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:17`) and the three private `LockHandle` classes (InMemory `:250`, Redis `:223`, SQL Server `:242`) are untouched; a declaration-form multi-line search of `src/` and `tests/` finds no test class implementing either interface. The two caching providers' private `LockHandle` implements `IAsyncDisposable` only (`MemoryDistributedLockProvider.cs:222`, `RedisDistributedLockProvider.cs:208`); #2667 and ADR-052 force them onto `ILockHandle` (open [#2653](https://github.com/dlrivada/Encina/issues/2653) decides how), and the wrapper needs nothing else.
 - Constructor-site changes: PR 3 adds one dependency to the behavior of #220; the `new DistributedLockPipelineBehavior<,>(` sites are in #220's behavior unit test, DI test and guard test (grep them on `origin/main` when #220 PR 2 has merged); PR 2 adds `AddEncinaDistributedLockAutoExtend` (new registration, PublicAPI line, guard test).
-- `Encina.DistributedLock` has no `InternalsVisibleTo` for `Encina.GuardTests` (public types only); `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and no Redis collection.
+- `Encina.DistributedLock` has no `InternalsVisibleTo` for `Encina.GuardTests` (public types only); `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and references `Encina.TestInfrastructure`, which already has the shared `RedisFixture` and `RedisCollection` (`Name = "Redis"`) in `tests/Encina.TestInfrastructure/Fixtures/RedisFixture.cs` on `origin/main`; they are reused, not created.
 - `.github/coverage-manifest/Encina.DistributedLock.json`: package targets guard 20, unit 60; existing entries stay.
 
 ---
@@ -49,16 +49,15 @@ A lock with an expiry protects a handler only while the handler is faster than t
 |--------|------|------|
 | **A) One internal wrapper and one internal extender, used by both a provider decorator (global option) and the pipeline behavior (attribute)** | The issue's two switches share one implementation | Two entry points to document |
 | **B) Only the attribute (behavior) path** | Smaller | `AutoExtendLocks` of the issue's options is not delivered; direct provider users renew by hand |
-| **C) Inside each provider** | Native renewal per backend | Seven implementations of one loop; the decorators and the multi-lock would not see them |
+| **C) Inside each provider** | Native renewal per backend (Azure Blob and DynamoDB can renew natively) | Seven implementations of one loop; the decorators and the multi-lock would not see them |
 
-### Chosen Option: **A**
+### Chosen Option: **A** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A delivers both items of the issue's acceptance criteria (`AutoExtendLocks` option and the `AutoExtend` attribute property) once, on every provider.
+- B fails the issue's acceptance criteria (`AutoExtendLocks` option, `AutoExtend` attribute property); A and C both deliver them, so the choice is a design one. A wins on one tested loop shared by every provider and on composability with the decorators of #724 and #741; C wins if a backend's native renewal (blob lease, DynamoDB heartbeat) is preferred over a client loop, at the price of seven loops to keep correct.
 
-**Class:** Settled
-**Settled by:** issue #223 Acceptance Criteria ("`AutoExtendLocks` option in `DistributedLockOptions`", "Integration with `DistributedLockPipelineBehavior`", "`AutoExtend` property in `[DistributedLock]` attribute")
+**Class:** Dilemma
 
 </details>
 
@@ -97,7 +96,7 @@ A lock with an expiry protects a handler only while the handler is faster than t
 
 ### Rationale
 
-- Both can comply if every failure is caught; A removes the overlap hazard. `DisposeAsync` cancels the loop, waits for it (bounded by the interval), and only then disposes the inner handle, serialized with an in-flight extension by one `SemaphoreSlim`.
+- Both can comply if every failure is caught; A removes the overlap hazard (the same loop kind as ADR-052's cancellation rule and the `PeriodicTimer` rule of `AGENTS.md` section 3), and the maintainer's rule fixes only the catching, not the timer kind. `DisposeAsync` cancels the loop, waits for it (bounded by the interval), and only then disposes the inner handle, serialized with an in-flight extension by one `SemaphoreSlim`. No behavior of a consumer depends on which timer is used, so this is Trivial.
 
 **Class:** Trivial
 **Settled by:** `AGENTS.md` section 3 (background loops and timers never let an exception escape; `PeriodicTimer` loops catch per iteration; time through `TimeProvider`)
@@ -165,6 +164,29 @@ A lock with an expiry protects a handler only while the handler is faster than t
 
 </details>
 
+<details>
+<summary><strong>7. How the public behavior of #220 receives the extender (CS0051)</strong></summary>
+
+`DistributedLockPipelineBehavior` of #220 is `public sealed` with a public constructor (it is registered through MS DI, which binds public constructors only, and it is in PublicAPI). A public constructor parameter of an `internal` type is error CS0051 (inconsistent accessibility), so the extender cannot stay `internal sealed` and be a constructor parameter.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A public interface `IDistributedLockAutoExtender` (`Wrap(ILockHandle handle, ...)` returning `IAutoExtendingLockHandle`; both types are public), implemented by the internal `LockAutoExtender`; the behavior takes the interface** | Matches the public `IAutoExtendingLockHandle` and `IDistributedLockScopeAccessor` already in this plan; the wrapper stays internal; a test can substitute the extender | One more public interface (PublicAPI line, one more file in PR 1) |
+| **B) `LockAutoExtender` itself public (sealed class with PublicAPI lines)** | No interface | Exposes the implementation and its constructor dependencies; an extra public surface to keep stable |
+| **C) A second, internal constructor on the behavior** | No new public type | MS DI selects only public constructors, so the extender would not be injected; rejected |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+- C does not work and B widens the public surface for no gain; A and B both build. A wins on a smaller, mockable surface; B wins if the maintainer prefers one type less. The interface is created in PR 1 (the extender is its only implementer; no test double or other implementer exists on `origin/main` because the type is new), and the PR 3 behavior constructor takes `IDistributedLockAutoExtender` and `IDistributedLockScopeAccessor`.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -178,7 +200,7 @@ A lock with an expiry protects a handler only while the handler is faster than t
 
 1. **`AutoExtend/LockAutoExtendOptions.cs`** and **`LockAutoExtendOptionsValidator.cs`** (new) - Design Choice 5.
 2. **`AutoExtend/IAutoExtendingLockHandle.cs`** (new, public) - `ILockHandle` plus `CancellationToken LockLostToken { get; }` and `bool IsLockLost { get; }`.
-3. **`AutoExtend/AutoExtendingLockHandle.cs`** (new, internal sealed) and **`LockAutoExtender.cs`** (new, internal sealed, `Wrap(ILockHandle, ...)`): the loop of Design Choice 3, the accounting of Design Choice 4, `ExpiresAtUtc` = local lease expiry, manual `ExtendAsync` passes through and resets the local expiry, `DisposeAsync` stops the loop first.
+3. **`AutoExtend/AutoExtendingLockHandle.cs`** (new, internal sealed) and **`LockAutoExtender.cs`** (new, internal sealed, implements the new public **`IDistributedLockAutoExtender.cs`**, `Wrap(ILockHandle, ...)`, Design Choice 7; it takes the singleton `IRequestContextAccessor` and captures the tenant id at `Wrap` time for the metric tag): the loop of Design Choice 3, the accounting of Design Choice 4, `ExpiresAtUtc` = local lease expiry, manual `ExtendAsync` passes through and resets the local expiry, `DisposeAsync` stops the loop first.
 4. **Tests** (unit, InMemory provider, `FakeTimeProvider`): renews on every tick and keeps the lock past its original expiry; `Right(false)` cancels the token at once; faults retried until the local expiry then lost; `AbortOnExtensionFailure = false` only logs; dispose stops the loop before release and is idempotent; an exception in the loop never escapes and the loop continues; manual extend; validator bounds; guard test of the validator. PublicAPI lines and manifest entries (`mechanical-fixer`).
 
 </details>
@@ -195,7 +217,7 @@ CONTEXT:
 - Time comes from TimeProvider; PeriodicTimer(interval, timeProvider).
 
 TASK:
-Create LockAutoExtendOptions and its validator, IAutoExtendingLockHandle, AutoExtendingLockHandle and LockAutoExtender with the tests of the Phase 1 tasks.
+Create LockAutoExtendOptions and its validator, IAutoExtendingLockHandle, IDistributedLockAutoExtender (public), AutoExtendingLockHandle and LockAutoExtender (internal, implements the interface) with the tests of the Phase 1 tasks.
 
 KEY RULES:
 - The loop catches per iteration and never throws; no async void; no Timer callback with an async lambda.
@@ -252,9 +274,9 @@ REFERENCE FILES:
 
 1. **`Pipeline/DistributedLockAttribute.cs`** (modify, from #220) - `AutoExtend` (`LockAutoExtendMode`, default `Inherit`) and `AutoExtendIntervalSeconds`; **`LockAutoExtendMode.cs`** is part of PR 1's file list as an enum in `AutoExtend/` (counted there).
 2. **`AutoExtend/IDistributedLockScopeAccessor.cs`** and **`DistributedLockScopeAccessor.cs`** (new; singleton, `AsyncLocal<CancellationToken>`; the behavior sets it before `nextStep()` and restores it after).
-3. **`Pipeline/DistributedLockPipelineBehavior.cs`** (modify) - wraps the handle when the attribute enables it (or the global option is on and the handle is not wrapped yet), publishes the token, and after `nextStep()` returns `lock_pipeline.lock_lost` when `IsLockLost`; constructor gains `LockAutoExtender` and `IDistributedLockScopeAccessor`. **`DistributedLockPipelineErrorCodes.cs`** (modify): `lock_pipeline.lock_lost` (`Conflict`).
-4. **`ServiceCollectionExtensions.cs`** (modify) - registers the accessor and the extender (`TryAdd`).
-5. **Tests** - attribute on and off, interval override, loss while the handler runs returns the Left and cancels the token the handler read, no double wrapping with the global switch, release after loss; the three constructor sites of #220 (behavior unit test, DI test, guard test) are updated. PublicAPI and manifest rows (`mechanical-fixer`).
+3. **`Pipeline/DistributedLockPipelineBehavior.cs`** (modify) - wraps the handle when the attribute enables it (or the global option is on and the handle is not wrapped yet), publishes the token, and after `nextStep()` returns `lock_pipeline.lock_lost` when `IsLockLost`; constructor gains the public `IDistributedLockAutoExtender` (never the internal `LockAutoExtender`: CS0051, Design Choice 7) and `IDistributedLockScopeAccessor`. **`DistributedLockPipelineErrorCodes.cs`** (modify): `lock_pipeline.lock_lost` (`Conflict`).
+4. **`ServiceCollectionExtensions.cs`** (modify) - registers the accessor and `IDistributedLockAutoExtender` -> `LockAutoExtender` (`TryAdd`, singletons).
+5. **Tests** - attribute on and off, interval override, loss while the handler runs returns the Left and cancels the token the handler read, no double wrapping with the global switch, release after loss; the three constructor sites of #220 (behavior unit test, DI test, guard test) are updated, re-grepped at PR 3 time because #220 PR 3 already changed the same constructor. PublicAPI line for the changed constructor and the new accessor members, and manifest rows (`mechanical-fixer`).
 
 </details>
 
@@ -289,7 +311,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Diagnostics/AutoExtendLog.cs`** (new, `internal static partial`) - 30609 renewal started (Debug), 30610 extension failed and will be retried (Warning: error code), 30611 lock lost (Warning: reason `not_held`, `lease_expired`), 30612 renewal loop iteration failed (Error: `ForLogging()`), 30613 renewal stopped (Debug). Ids 30609-30613 of the family range `DistributedLockPipeline` (30600-30649).
-2. **`Diagnostics/AutoExtendMetrics.cs`** (new, internal) - on the shared `DistributedLockDiagnostics` meter: counter `encina.distributed_lock.auto_extend.extensions` (tag `encina.lock.outcome`: `extended`, `failed`, `lost`) and up-down counter `encina.distributed_lock.auto_extend.active`; no `_total`; no tenant tag because a handle has no request context (the behavior's own counter of #220 carries it with multi-tenancy); never a resource name.
+2. **`Diagnostics/AutoExtendMetrics.cs`** (new, internal) - on the shared `DistributedLockDiagnostics` meter: counter `encina.distributed_lock.auto_extend.extensions` (tag `encina.lock.outcome`: `extended`, `failed`, `lost`) and up-down counter `encina.distributed_lock.auto_extend.active`; no `_total`; the tenant tag when multi-tenancy is on (ADR-054 D4), through the helper of #2676, from the tenant id the extender captured from `IRequestContextAccessor` at `Wrap` time (the loop runs outside the request flow); a handle wrapped with no ambient tenant carries no tenant tag and never a substituted `default` value; never a resource name.
 3. **EventId registration** only if this PR is the first of the family with a log (`EventIdRanges.cs` field `DistributedLockPipeline = (30600, 30649)`, core `PublicAPI.Unshipped.txt`, one registry row with the same bounds, `AssemblyRanges` entry; owned by #220 PR 4 by default).
 4. **Tests** - `MeterListener` and log tests; load and benchmark justification `.md` files.
 
@@ -324,7 +346,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`tests/Encina.ContractTests/DistributedLock/AutoExtendContractTests.cs`** (new) over the InMemory provider; `Encina.ContractTests.csproj` needs the two `ProjectReference` lines unless #220 PR 5 added them (it has none today).
-2. **Integration** - `AutoExtendRedisIntegrationTests.cs` (shared Redis collection added by #220 PR 5, or here if first: 2 more files): a handler longer than the lease keeps the lock; deleting the key cancels the token. SQL Server: the same scenario waits for #2405 (its locks never expire, so renewal is a no-op there, documented in the README).
+2. **Integration** - `AutoExtendRedisIntegrationTests.cs` (in the existing shared `[Collection(RedisCollection.Name)]` with `RedisFixture` from `Encina.TestInfrastructure.Fixtures`; nothing is created): a handler longer than the lease keeps the lock; deleting the key cancels the token. SQL Server: the same scenario waits for #2405 (its locks never expire, so renewal is a no-op there, documented in the README).
 
 </details>
 
@@ -390,13 +412,13 @@ REFERENCE FILES:
 
 | PR | Content | New | Modified | Tests, manifests, PublicAPI, docs | Total | Lines (est.) |
 |----|---------|-----|----------|------------------------------------|-------|--------------|
-| 1 | Options, interface, mode enum, wrapper, extender | 6 (options, validator, interface, enum, wrapper, extender) | 1 (PublicAPI) | 3 (wrapper tests, options tests, validator guard test) + manifest | 11 | 1,300 |
+| 1 | Options, interfaces, mode enum, wrapper, extender | 7 (options, validator, `IAutoExtendingLockHandle`, `IDistributedLockAutoExtender`, enum, wrapper, extender) | 1 (PublicAPI) | 4 (wrapper tests, options tests, validator guard test, manifest) | 12 | 1,350 |
 | 2 | Decorator, registration | 1 | 4 (`ServiceCollectionExtensions.cs`, PublicAPI, README, manifest) | 4 (decorator tests, DI test, guard test, fragment) | 9 | 800 |
 | 3 | Pipeline integration | 2 (accessor interface and class) | 5 (attribute, behavior, error codes, `ServiceCollectionExtensions.cs`, PublicAPI) | 5 (new behavior auto-extend tests, behavior tests, DI tests, guard tests, manifest) | 12 | 950 |
-| 4 | Log, metrics (+4 if first of the family) | 2 | 1 (extender) | 5 (metrics tests, log tests, manifest, 2 justification `.md`) | 8 (12) | 600 |
-| 5 | Contract, integration | 2 (contract, Redis integration) | 1 (ContractTests csproj) | 0 | 3 (5 with the Redis fixture) | 450 |
+| 4 | Log, metrics (+4 if first of the family) | 2 | 1 (extender) | 5 (metrics tests, log tests, manifest, 2 justification `.md`) | 8 (12) | 650 |
+| 5 | Contract, integration | 2 (contract, Redis integration) | 1 (ContractTests csproj) | 0 | 3 | 450 |
 
-Total about 4,100 lines. Every PR is at most 15 files and 1,500 lines and builds and passes alone (PR 3 needs #220 PR 2; PR 4 needs PR 1).
+Total about 4,200 lines (1,350 + 800 + 950 + 650 + 450). Every PR is at most 15 files and 1,500 lines and builds and passes alone (PR 3 needs #220 PR 2; PR 4 needs PR 1).
 
 ### Per-file coverage targets (numeric, per flag)
 
@@ -406,7 +428,7 @@ Total about 4,100 lines. Every PR is at most 15 files and 1,500 lines and builds
 | `AutoExtendDistributedLockProvider.cs` | 95 | 0 | 40 | 0 | Forwarding decorator, internal type; every branch on the InMemory provider |
 | `LockAutoExtendOptionsValidator.cs`, `LockAutoExtendOptions.cs` | 95 | 40 | 0 | 0 | Pure validation |
 | `DistributedLockScopeAccessor.cs`, `AutoExtendMetrics.cs` | 90 | 0 | 0 | 0 | `AsyncLocal` and `MeterListener` tests; internal types |
-| `IAutoExtendingLockHandle.cs`, `IDistributedLockScopeAccessor.cs`, `LockAutoExtendMode.cs`, `AutoExtendLog.cs` | 0 | 0 | 0 | 0 | Interfaces, an enum and source-generated log methods: no executable logic |
+| `IAutoExtendingLockHandle.cs`, `IDistributedLockAutoExtender.cs`, `IDistributedLockScopeAccessor.cs`, `LockAutoExtendMode.cs`, `AutoExtendLog.cs` | 0 | 0 | 0 | 0 | Interfaces, an enum and source-generated log methods: no executable logic |
 
 ---
 
@@ -430,7 +452,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - Sequential PeriodicTimer loop per handle, per-iteration catch, never async void.
 - Fail closed: lease accounting from the time before the extend call; a lost lock cancels LockLostToken.
-- Dilemmas 2, 4 and 5 are pending the maintainer: implement the recommended options only after he answers.
+- Dilemmas 1, 2, 4, 5 and 7 are pending the maintainer: implement the recommended options only after he answers.
 - SQL Server ignores lock expiry until #2405: state it, never claim renewal there.
 
 REFERENCE FILES:
@@ -447,7 +469,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Locks are ephemeral coordination primitives |
-| 2 | OpenTelemetry | ✅ Include | Phase 4: extension outcome counter and active-renewals gauge; no tenant tag (a handle has no request context), no resource names |
+| 2 | OpenTelemetry | ✅ Include | Phase 4: extension outcome counter and active-renewals gauge; the tenant tag when multi-tenancy is on (ADR-054 D4), captured at `Wrap` time, none and no `default` when there is no tenant; no resource names |
 | 3 | Structured Logging | ✅ Include | Phase 4: `AutoExtendLog` 30609-30613, error codes and exception types only |
 | 4 | Health Checks | ❌ N/A | Renewal is per lock, not a service dependency; backend health is the provider's |
 | 5 | Validation | ✅ Include | `LockAutoExtendOptions` validated on start; attribute interval validated by #220's plan resolution |
@@ -476,4 +498,4 @@ REFERENCE FILES:
 ## Next Steps
 
 1. After #2667 merges open PR 1, then PR 2; PR 3 after #220 PR 2; PR 4 after PR 1; PR 5 after PR 2.
-2. The maintainer answers Dilemmas 2, 4 and 5 when work on the issue starts; PRs are written for the recommended answers.
+2. The maintainer answers Dilemmas 1, 2, 4, 5 and 7 when work on the issue starts; PRs are written for the recommended answers.
