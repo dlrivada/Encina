@@ -55,7 +55,7 @@ public sealed class ReferenceTableStoreDapper(IDbConnection connection) : IRefer
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.UpsertFailed,
+                ReferenceTableErrorCodes.UpsertFailed, ErrorCategory.Internal,
                 $"Failed to upsert reference table '{typeof(TEntity).Name}': {ex.Message}");
         }
     }
@@ -78,7 +78,7 @@ public sealed class ReferenceTableStoreDapper(IDbConnection connection) : IRefer
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.GetAllFailed,
+                ReferenceTableErrorCodes.GetAllFailed, ErrorCategory.Internal,
                 $"Failed to read reference table '{typeof(TEntity).Name}': {ex.Message}");
         }
     }
