@@ -3,7 +3,7 @@
 > **Issue**: [#221](https://github.com/dlrivada/Encina/issues/221)
 > **Type**: Feature
 > **Complexity**: Medium (one attribute, one gate behavior over the election API of #216, 4 pull requests)
-> **Estimated Scope**: ~550 lines of production code + ~1,100 lines of tests (about 2,300 lines over 4 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
+> **Estimated Scope**: ~550 lines of production code + ~2,050 lines of tests, manifests and docs (about 2,600 lines over 4 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
 > **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027, AC-027; [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D3, D4, D6.3; [ADR-062](../architecture/adr/062-error-category-contract.md)
 > **Depends on**: [#216](https://github.com/dlrivada/Encina/issues/216) (`ILeaderElectionProvider`; open, plan on main, nothing written; the issue itself says "Requires: #216"); [#2667](https://github.com/dlrivada/Encina/issues/2667) (ADR-052 implementation); PR 1 of [#220](https://github.com/dlrivada/Encina/issues/220) (the resource-template resolver this plan reuses); [#2405](https://github.com/dlrivada/Encina/issues/2405) (open bug: the SQL Server lock ignores its expiry) for the SQL Server failover scenario
 > **Related**: family `lock-pipeline` (#220, #223, #224, #225); #216, #717 (leader election for the message processors), #724, #741, #2184 (pipeline stages)
@@ -15,14 +15,14 @@
 Some commands must run on one instance only: the scheduler tick, the outbox publisher, a singleton worker. This plan adds a **leadership gate** to `Encina.DistributedLock`: a request type marked `[RequiresLeadership("scheduler")]` runs only on the instance that currently leads that election, and every other instance answers with a stable `Left` (or waits for leadership when asked to).
 
 1. **Attribute.** `RequiresLeadershipAttribute(electionName)` with `WaitForLeadership`, `WaitTimeoutSeconds`; the election name may use the same `{Placeholder}` templates as #220 (Design Choice 4).
-2. **Gate.** `LeaderElectionPipelineBehavior<TRequest, TResponse>` asks `ILeaderElectionProvider.IsLeaderAsync(name)` (#216); leader means `await nextStep()`, anything else denies. A `Left` from the election check **denies** the request (fail closed); the gate never lets a request through because the check failed.
+2. **Gate.** `LeaderElectionPipelineBehavior<TRequest, TResponse>` asks `ILeaderElectionProvider.IsLeaderAsync(name)` (#216); leader means `await nextStep()`, anything else denies. A `Left` from the election check **denies** the request (fail closed); the gate never lets a request through because the check failed. **What the gate guarantees**: the instance is the leader, with a lease still valid by #216's safe-leadership rule, at the instant of the check. It is check-then-run: leadership can end while the handler runs (the local lease may expire mid-handler, or a failover can start), so the gate does not stop a long handler by itself. A long-running or side-effecting handler pairs the gate with the lost-leadership signal of #216 (`LeadershipLostToken` on the handle its campaign holds, per #216's own Dilemma 3) so it stops itself, or with fencing tokens (#218) on the resource it protects so a stale leader is rejected by the resource. The README says so (Phase 2).
 3. **Wait mode.** With `WaitForLeadership` the gate polls on `TimeProvider` until the instance leads, the wait elapses, or the token is cancelled.
 4. **Stage.** The gate is an admission step: a non-leader rejects before any identity, validation or transaction work (Design Choice 2).
 5. **Opt-in.** `AddEncinaLeadershipGate()` registers the behavior and fails at startup when no `ILeaderElectionProvider` is registered.
 
 **Standards**: ADR-052; ADR-054; ADR-062; `AGENTS.md` section 3 (fail-closed gates, ROP, errors never swallowed, registration completeness); the [Leader Election pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/leader-election).
 
-**Affected packages**: `Encina.DistributedLock` (everything); `Encina` (EventId registration only when this plan is the first of the family with a log); test projects `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.IntegrationTests`. No provider package changes: election runs on any lock provider through #216.
+**Affected packages**: `Encina.DistributedLock` (everything); `Encina` (none: the EventId range is registered by #220 PR 4); test projects `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.IntegrationTests`. No provider package changes: election runs on any lock provider through #216.
 
 **Provider category**: Distributed locks (`AGENTS.md` section 5): election is built on the lock providers by #216, so the gate covers all seven (InMemory, Redis, SQL Server now; PostgreSQL #207, MySQL #208, Azure Blob #209, DynamoDB #210 when they land), proven by #216's contract scenarios plus this plan's. Database (10), caching and transports do not apply.
 
@@ -31,7 +31,7 @@ Some commands must run on one instance only: the scheduler tick, the outbox publ
 - Nothing of this feature exists: no `ILeaderElectionProvider`, `ILeadershipHandle`, `RequiresLeadershipAttribute` or leader behavior under `src/` (a search of `src/` for `LeaderElection` and `Leadership` returns no hit). The #216 plan on main defines `ILeaderElectionProvider` with `IsLeaderAsync(electionName, ct)` and `HasLeaderAsync` returning `Task<Either<EncinaError, bool>>` and a synchronous `IsHoldingLeadership(name)`, campaigns configured by `LeadershipCampaignOptions.Elections`, and the safe-leadership rule (leader only while the local lease has not expired).
 - `IPipelineBehavior<TRequest, TResponse>.Handle(request, IRequestContext, RequestHandlerCallback<TResponse>, CancellationToken)` (`src/Encina/Abstractions/IPipelineBehavior.cs`); stages exist in `src/Encina/Pipeline/Ordering/PipelineStage.cs` (`Admission = 200`: "load shedding ... rejected cheaply") but the vocabulary is "declared, not yet applied by the pipeline builders" (#2184 open).
 - Implementers: this plan consumes `ILeaderElectionProvider` (no implementer yet) and changes no interface, so no implementer, fake or `new X(` site is affected; no test class implements `IDistributedLockProvider` or `ILockHandle`.
-- `Encina.DistributedLock` has no `InternalsVisibleTo` for `Encina.GuardTests`; `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and no Redis collection.
+- `Encina.DistributedLock` has no `InternalsVisibleTo` for `Encina.GuardTests`; `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and references `Encina.TestInfrastructure`, which already has the shared `RedisFixture` and `RedisCollection` (`Name = "Redis"`) in `tests/Encina.TestInfrastructure/Fixtures/RedisFixture.cs` (reused, not created).
 - `.github/coverage-manifest/Encina.DistributedLock.json`: package targets guard 20, unit 60; existing entries stay.
 
 ---
@@ -111,14 +111,13 @@ Some commands must run on one instance only: the scheduler tick, the outbox publ
 | **A) Reuse `DistributedLockResourceTemplate` of #220 (same placeholders, same escaping, same context-wins rule and fail-closed denials); the resolver stays internal and its failures map to this plan's codes** | One implementation of the injective escape; one set of tests | PR 1 of this plan waits for #220 PR 1 |
 | **B) A second resolver in this plan** | No dependency | Two copies of escaping and fail-closed logic |
 
-### Chosen Option: **A**
+### Chosen Option: **A** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Only A keeps one escaping rule: a second implementation could map two tenants to one election name. The context-wins rule is Dilemma 6 of #220, answered once for both plans. A template naming `{TenantId}` with no context tenant denies with `tenant_required`; no `default` segment is substituted.
+- A wins on one escaping rule (a second implementation could map two tenants to one election name) and one set of tests; B wins if this plan must not wait for #220 PR 1, at the price of a second copy of the escape and the fail-closed logic that must stay in step with the first. Both options deny a template naming `{TenantId}` with no context tenant (`tenant_required`) and substitute no `default` segment. Whatever the maintainer answers for the placeholder source in #220 applies to this gate as it uses the same resolver; this plan does not restate it.
 
-**Class:** Settled
-**Settled by:** `AGENTS.md` section 3 (fail-closed gates) and the injective-id rule applied in #220 Design Choice 6 (one resolver, one escape)
+**Class:** Dilemma
 
 </details>
 
@@ -213,7 +212,7 @@ REFERENCE FILES:
 
 1. **`Pipeline/LeaderElectionPipelineBehavior.cs`** (new, public sealed; `where TRequest : IRequest<TResponse>`; `[PipelineStage(PipelineStage.Admission, Order = 100)]`; constructor `(ILeaderElectionProvider, IOptions<LeadershipGateOptions>, ILogger<...>, TimeProvider? timeProvider = null)`) - no attribute passes through; static cached plan (attribute and compiled template, as in #220 Design Choice 7); resolve the name with `DistributedLockResourceTemplate`; `IsLeaderAsync`: `Right(true)` runs `nextStep()`; `Right(false)` is `not_leader` (or the wait of Design Choice 5); `Left` is `election_failed` (fail closed, the cause code is logged, its message never).
 2. **`ServiceCollectionExtensions.cs`** (modify) - `AddEncinaLeadershipGate(...)` per Design Choice 6.
-3. **Tests** against a controllable `ILeaderElectionProvider` fake and the InMemory lock provider through #216 once written: leader runs, follower denied, election `Left` denies, wait succeeds when leadership arrives on a fake clock, wait times out, cancellation propagates, missing tenant for `{TenantId}` denies, request without attribute untouched, DI test with `ValidateOnBuild` and `ValidateScopes` with and without an election provider, guard tests (constructor nulls). README section and changelog fragment `changelog.d/221-leadership-gate.added.md` (specialists).
+3. **Tests** against a controllable `ILeaderElectionProvider` fake and the InMemory lock provider through #216 once written: leader runs, follower denied, election `Left` denies, wait succeeds when leadership arrives on a fake clock, wait times out, cancellation propagates, missing tenant for `{TenantId}` denies, request without attribute untouched, DI test with `ValidateOnBuild` and `ValidateScopes` with and without an election provider, guard tests (constructor nulls). The DI test registers a `FakeTimeProvider` for the wait scenarios and otherwise relies on the default `TimeProvider.System` of the optional constructor parameter (MS DI uses the declared default when no `TimeProvider` is registered). README section (it states the check-then-run window and its mitigations: the lost-leadership signal of #216 and fencing of #218) and changelog fragment `changelog.d/221-leadership-gate.added.md` (specialists).
 
 </details>
 
@@ -251,7 +250,7 @@ REFERENCE FILES:
 
 1. **`Diagnostics/LeadershipGateLog.cs`** (new, `internal static partial`) - 30605 request rejected because the instance is not the leader (Information: request type), 30606 waiting for leadership (Debug), 30607 leadership wait timed out (Warning: request type, waited seconds), 30608 leadership check failed so the request was denied (Warning: error code). Ids 30605-30608 of the family range `DistributedLockPipeline` (30600-30649).
 2. **`Diagnostics/LeadershipGateMetrics.cs`** (new, internal) - on the shared `DistributedLockDiagnostics` meter: counter `encina.distributed_lock.leadership_gate.requests` with tags `request.name` and `encina.leadership.outcome` (`leader`, `skipped`, `timeout`, `failed`); no `_total`; tenant tag only with multi-tenancy (#2676); the election name is never a tag.
-3. **EventId registration** only if this PR is the first of the family with a log: `EventIdRanges.cs` field `DistributedLockPipeline = (30600, 30649)`, core `PublicAPI.Unshipped.txt`, one registry row with the same bounds, `AssemblyRanges` entry in `EncinaEventIdAllocationTests.cs` (4 more files, counted below as an option; #220 PR 4 owns it by default).
+3. **EventId range**: not registered here. `DistributedLockPipeline = (30600, 30649)` is registered by #220 PR 4 (one registry row, identical bounds); this PR waits for #220 PR 4 so two PRs never register the row.
 4. **Tests** - `MeterListener` tests (`skipped` is never `failed`; no election name in any tag or log argument), log tests, load and benchmark justification `.md` files.
 
 </details>
@@ -263,7 +262,7 @@ REFERENCE FILES:
 You are implementing Phase 3 of issue #221: telemetry of the leadership gate.
 
 CONTEXT:
-- Ids 30605-30608 belong to the family range DistributedLockPipeline (30600-30649), registered by #220 PR 4 or by the first family PR with a log.
+- Ids 30605-30608 belong to the family range DistributedLockPipeline (30600-30649), registered by #220 PR 4 (not by this PR).
 
 TASK:
 Write LeadershipGateLog and LeadershipGateMetrics, emit them from the behavior and add the tests.
@@ -285,7 +284,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`tests/Encina.ContractTests/DistributedLock/LeadershipGateContractTests.cs`** (new) - over the InMemory lock provider and the election of #216: the follower is denied while the leader runs, and the roles swap after the leader's lease ends. `Encina.ContractTests.csproj` needs the two `ProjectReference` lines to `Encina.DistributedLock` and `Encina.DistributedLock.InMemory` unless #220 PR 5 already added them (modify, 1 file).
-2. **Integration** - `LeadershipGateRedisIntegrationTests.cs` (shared Redis collection added by #220 PR 5, or by this PR if first: 2 more files) and `LeadershipGateSqlServerIntegrationTests.cs` (`ADO-SqlServer`): two gates over one backend, exactly one runs the handler; failover after the leader disposes. The SQL Server expiry-based failover waits for #2405.
+2. **Integration** - `LeadershipGateRedisIntegrationTests.cs` (existing shared `[Collection(RedisCollection.Name)]` and `RedisFixture` of `Encina.TestInfrastructure.Fixtures`; nothing is created) and `LeadershipGateSqlServerIntegrationTests.cs` (`ADO-SqlServer`): two gates over one backend, exactly one runs the handler; failover after the leader disposes. The SQL Server expiry-based failover waits for #2405.
 
 </details>
 
@@ -352,8 +351,8 @@ REFERENCE FILES:
 |----|---------|-----|----------|------------------------------------|-------|--------------|
 | 1 | Attribute, codes, options | 4 | 1 (PublicAPI) | 3 (options tests, validator guard test, manifest) | 8 | 450 |
 | 2 | Behavior, registration | 1 | 3 (`ServiceCollectionExtensions.cs`, PublicAPI, README) | 5 (behavior tests, DI test, guard test, manifest, fragment) | 9 | 1,000 |
-| 3 | Log, metrics (+4 if first of the family) | 2 | 1 (behavior) | 5 (metrics tests, log tests, manifest, 2 justification `.md`) | 8 (12) | 600 |
-| 4 | Contract, integration | 3 (contract, 2 integration) | 1 (ContractTests csproj) | 0 | 4 (6 with the Redis fixture) | 550 |
+| 3 | Log, metrics (waits for #220 PR 4, which registers the range) | 2 | 1 (behavior) | 5 (metrics tests, log tests, manifest, 2 justification `.md`) | 8 | 600 |
+| 4 | Contract, integration | 3 (contract, 2 integration) | 1 (ContractTests csproj) | 0 | 4 | 550 |
 
 Total about 2,600 lines. Every PR is at most 15 files and 1,500 lines and builds and passes alone (PR 1 needs #220 PR 1 only for the resolver in PR 2).
 
@@ -387,7 +386,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - Consult-only gate; a Left from the election check denies; not-leader is a normal outcome.
 - Reuse DistributedLockResourceTemplate from #220; never log election names or EncinaError.Message.
-- Dilemmas 1, 2 and 3 are pending the maintainer: implement the recommended options only after he answers.
+- Dilemmas 1, 2, 3 and 4 are pending the maintainer: implement the recommended options only after he answers.
 
 REFERENCE FILES:
 - docs/plans/lock-leadership-gate-implementation-plan-221.md, docs/plans/leader-election-provider-implementation-plan-216.md
@@ -409,7 +408,7 @@ REFERENCE FILES:
 | 6 | Resilience | ❌ N/A | The issue's "graceful degradation" would let requests through when the check fails; that is the opposite of a fail-closed gate, so the gate denies |
 | 7 | Distributed Locks | ✅ Include | The gate sits on the election built over the lock providers |
 | 8 | Transactions | ❌ N/A | A gate, not data mutation; it runs before the transaction stage |
-| 9 | Idempotency | ❌ N/A | A stateless check |
+| 9 | Idempotency | ❌ N/A | A stateless check; the check-then-run window (leadership may end while the handler runs) is stated in the README with the #216 lost-leadership signal and #218 fencing as mitigations |
 | 10 | Multi-Tenancy | ✅ Include | `{TenantId}` in a name resolves from the context and denies when missing; no `default` segment |
 | 11 | Module Isolation | ❌ N/A | Modules are separated with election names and `KeyPrefix` |
 | 12 | Audit Trail | ❌ N/A | Covered by #216; a rejected request carries no regulated data |
@@ -423,7 +422,7 @@ REFERENCE FILES:
 | #216 `ILeaderElectionProvider` | open, plan on main | PR 2 onward |
 | #2667 ADR-052 implementation | open | #216 and all PRs |
 | #220 PR 1 (resolver) | plan on main | PR 2 |
-| Family EventId range | registered by #220 PR 4 or the first family PR with a log | PR 3 |
+| Family EventId range | registered by #220 PR 4 only | PR 3 |
 | #2405 SQL Server expiry | open bug | SQL Server failover scenario of PR 4 |
 | #2184 stages applied by the builders | open | The stage declaration becomes effective |
 
@@ -432,4 +431,4 @@ REFERENCE FILES:
 ## Next Steps
 
 1. After #216 PR 2 merges open PR 1 and PR 2 (PR 2 also needs #220 PR 1); PR 3 after PR 2; PR 4 after PR 2.
-2. The maintainer answers Dilemmas 1, 2 and 3 when work on the issue starts; PRs are written for the recommended answers.
+2. The maintainer answers Dilemmas 1, 2, 3 and 4 when work on the issue starts; PRs are written for the recommended answers.
