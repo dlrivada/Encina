@@ -85,14 +85,14 @@
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Inherit the per-tenant session accessor of #326: isolation by construction** | No extra check; one mechanism | Blocked on #326 (open, no code); until it merges a temporal read is as open as `LoadAsync` is today |
-| **B) Own gate now: when the application is multi-tenant (`MultiTenancyMarker` registered) and `TemporalOptions.RequireTenantContext` (default `true`) is on, deny a read with no `IRequestContext.TenantId` (`InvalidRequest`), and deny a stream whose first event has no `TenantId` header or a different one (the read is answered as `NotFound` so the stream's existence is not revealed)** | Fail closed today on a shared store; works with `CaptureTenantId` (default on); stays valid, as defence in depth, once #326 lands | Streams written before `CaptureTenantId` or with it off are unreadable in a multi-tenant application until backfilled; one extra event read per call |
+| **B) Own gate now: when the application is multi-tenant (`MultiTenancyMarker` registered) and `TemporalOptions.RequireTenantContext ?? _isMultiTenantApplication` (a `bool?`, default `null` = follow whether `MultiTenancyMarker` is registered; `true` requires a tenant always) is true, deny a read with no `IRequestContext.TenantId` (`InvalidRequest`), and deny a stream whose first event has no `TenantId` header or a different one (the read is answered as `NotFound` so the stream's existence is not revealed)** | Fail closed today on a shared store; works with `CaptureTenantId` (default on); stays valid, as defence in depth, once #326 lands | Streams written before `CaptureTenantId` or with it off are unreadable in a multi-tenant application until backfilled; one extra event read per call |
 | **C) No tenant check, document it** | Smallest | A temporal read would widen access to history compared to the gates of `AGENTS.md` section 3 |
 
 ### Chosen Option: **B - Own gate, kept after #326** (recommended, pending the maintainer)
 
 ### Rationale
 
-- B wins because compliance gates fail closed when context is missing (`AGENTS.md` section 3; SPEC-002 DEC-006) and #326 has no code yet; A wins once #326 has merged if the maintainer prefers a single mechanism and accepts removing the header check then; C wins only for single-tenant applications, which B already treats as unchanged (the marker is absent). The plan-own option `RequireTenantContext = true` follows the pattern of `ConsentOptions.RequireTenantContext` (`src/Encina.Compliance.Consent/ConsentOptions.cs`), but is a plain `bool` with a fail-closed default: setting it to `false` is logged once at startup. Tenant segment note: there is no tenant-qualified id here, the stream id stays the caller's `Guid` and the tenant is compared as data, so two tenant/key pairs can never map to one id; the reserved tenant literal `default` is never invented: a missing tenant in a multi-tenant application is a `Left`.
+- B wins because compliance gates fail closed when context is missing (`AGENTS.md` section 3; SPEC-002 DEC-006) and #326 has no code yet; A wins once #326 has merged if the maintainer prefers a single mechanism and accepts removing the header check then; C wins only for single-tenant applications, which B already treats as unchanged (the marker is absent). The plan-own option `RequireTenantContext = true` follows the pattern of `ConsentOptions.RequireTenantContext` (`src/Encina.Compliance.Consent/ConsentOptions.cs`), and uses the same `RequireTenantContext ?? _isMultiTenantApplication` condition (a `bool?`, `null` follows the marker); setting it to `false` is logged once at startup. Tenant segment note: there is no tenant-qualified id here, the stream id stays the caller's `Guid` and the tenant is compared as data, so two tenant/key pairs can never map to one id; the reserved tenant literal `default` is never invented: a missing tenant in a multi-tenant application is a `Left`.
 
 **Class:** Dilemma
 
@@ -193,9 +193,9 @@ Five pull requests; each builds and passes alone with its own tests. Counts incl
 <details>
 <summary>Tasks</summary>
 
-1. **Create** `src/Encina.Marten/Temporal/ITemporalRepository.cs` (`public interface ITemporalRepository<TAggregate> where TAggregate : class, IAggregate`; the three methods above with XML docs and an example), `TemporalRange.cs` (`public sealed record TemporalRange(DateTimeOffset? FromUtc = null, DateTimeOffset? ToUtc = null, int? FromVersion = null, int? ToVersion = null)` with `internal Either<EncinaError, Unit> Validate()`), `AggregateDiff.cs` (`public sealed class AggregateDiff<TAggregate> where TAggregate : class` with a constructor `(TAggregate before, TAggregate after, IReadOnlyList<EventWithMetadata> eventsBetween)` that null-checks all three), `TemporalOptions.cs` (`public sealed class TemporalOptions { public bool RequireTenantContext { get; set; } = true; }`).
+1. **Create** `src/Encina.Marten/Temporal/ITemporalRepository.cs` (`public interface ITemporalRepository<TAggregate> where TAggregate : class, IAggregate`; the three methods above with XML docs and an example), `TemporalRange.cs` (`public sealed record TemporalRange(DateTimeOffset? FromUtc = null, DateTimeOffset? ToUtc = null, int? FromVersion = null, int? ToVersion = null)` with `internal Either<EncinaError, Unit> Validate()`), `AggregateDiff.cs` (`public sealed class AggregateDiff<TAggregate> where TAggregate : class` with a constructor `(TAggregate before, TAggregate after, IReadOnlyList<EventWithMetadata> eventsBetween)` that null-checks all three), `TemporalOptions.cs` (`public sealed class TemporalOptions { public bool? RequireTenantContext { get; set; } }` (`null` follows `MultiTenancyMarker`)).
 2. **Modify** `src/Encina.Marten/MartenErrorCodes.cs` (the three codes of register row C2), `src/Encina.Marten/EncinaMartenOptions.cs` (property `Temporal` of type `TemporalOptions`), `.github/coverage-manifest/Encina.Marten.json` (per-file targets of the table below; through `mechanical-fixer`).
-3. Tests: new `tests/Encina.UnitTests/Marten/Temporal/TemporalRangeTests.cs` (every invalid combination, valid open range), new `tests/Encina.GuardTests/Marten/Temporal/AggregateDiffGuardTests.cs` (null before, after and events; valid construction), `tests/Encina.UnitTests/Marten/Temporal/TemporalOptionsTests.cs` (default is fail closed).
+3. Tests: new `tests/Encina.UnitTests/Marten/Temporal/TemporalRangeTests.cs` (every invalid combination, valid open range), new `tests/Encina.GuardTests/Marten/Temporal/AggregateDiffGuardTests.cs` (null before, after and events; valid construction), `tests/Encina.UnitTests/Marten/Temporal/TemporalOptionsTests.cs` (null follows the multi-tenancy marker and a multi-tenant application fails closed).
 
 </details>
 
@@ -215,7 +215,7 @@ TASK:
 KEY RULES:
 - Every method returns Task<Either<EncinaError, T>>; no exceptions for invalid input; no DateTime, only DateTimeOffset.
 - Error codes carry ErrorCategory per ADR-062 (Validation, InvalidRequest, Internal); never FailedPrecondition.
-- TemporalOptions.RequireTenantContext defaults to true (fail closed).
+- TemporalOptions.RequireTenantContext is bool?: null follows whether MultiTenancyMarker is registered (fail closed in a multi-tenant application); false is a logged opt-out.
 - XML docs with examples on every public member; zero warnings.
 
 REFERENCE FILES:
