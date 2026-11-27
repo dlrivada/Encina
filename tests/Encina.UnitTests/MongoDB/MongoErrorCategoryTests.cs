@@ -9,6 +9,7 @@ using Encina.MongoDB.Tenancy;
 using Encina.MongoDB.Transactions;
 using Encina.Sharding;
 using Encina.Sharding.Migrations;
+using Encina.Sharding.ReferenceTables;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -72,13 +73,13 @@ public sealed class MongoErrorCategoryTests
     private static MigrationScript Script(string id = "m-1")
         => new(id, "{ \"ping\": 1 }", "{ \"ping\": 1 }", "description", "sha256:abc");
 
-    private sealed class Widget
+    public sealed class Widget
     {
         public Guid Id { get; set; }
 
         public string Name { get; set; } = string.Empty;
 
-        public string? TenantId { get; set; }
+        public string TenantId { get; set; } = string.Empty;
 
         public bool IsDeleted { get; set; }
     }
@@ -265,7 +266,7 @@ public sealed class MongoErrorCategoryTests
     }
 
     [Fact]
-    public async Task ReferenceTable_Upsert_Entities_ReturnsModifiedPlusUpserted()
+    public async Task ReferenceTable_Upsert_Entities_ReturnsModifiedCount()
     {
         var database = Substitute.For<IMongoDatabase>();
         var collection = Substitute.For<IMongoCollection<Widget>>();
@@ -279,9 +280,9 @@ public sealed class MongoErrorCategoryTests
                 matchedCount: 1,
                 deletedCount: 0,
                 insertedCount: 0,
-                modifiedCount: 1,
+                modifiedCount: 2,
                 processedRequests: [],
-                upserts: [new BulkWriteUpsert(1, MongoDB.Bson.BsonValue.Create(1))]));
+                upserts: []));
         var store = new ReferenceTableStoreMongoDB(database);
 
         var result = await store.UpsertAsync([new Widget { Id = Guid.NewGuid() }, new Widget { Id = Guid.NewGuid() }]);
