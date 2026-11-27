@@ -99,7 +99,7 @@ public class SequentialMigrationStrategyGuardTests
             CancellationToken.None);
 
         status.Outcome.ShouldBe(MigrationOutcome.Failed);
-        status.Error.HasValue.ShouldBeTrue();
+        status.Error!.Value.GetCode().IfNone(string.Empty).ShouldBe(MigrationErrorCodes.MigrationFailed);
     }
 
     /// <summary>
@@ -119,6 +119,7 @@ public class SequentialMigrationStrategyGuardTests
             CancellationToken.None);
 
         status.Outcome.ShouldBe(MigrationOutcome.Failed);
+        status.Error!.Value.GetCode().IfNone(string.Empty).ShouldBe(MigrationErrorCodes.MigrationTimeout);
     }
 
     /// <summary>
