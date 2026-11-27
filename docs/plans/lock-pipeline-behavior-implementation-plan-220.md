@@ -3,7 +3,7 @@
 > **Issue**: [#220](https://github.com/dlrivada/Encina/issues/220)
 > **Type**: Feature
 > **Complexity**: Medium (one attribute, one template resolver, one behavior, 5 pull requests)
-> **Estimated Scope**: ~900 lines of production code + ~1,600 lines of tests (about 3,750 lines over 5 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
+> **Estimated Scope**: ~1,100 lines of production code + ~2,600 lines of tests (about 3,700 lines over 5 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
 > **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027, AC-027; [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D3, D4, D6.3; [ADR-062](../architecture/adr/062-error-category-contract.md)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (implements ADR-052; open, not a pending maintainer decision); PR 3 also needs PR 1 of [#219](https://github.com/dlrivada/Encina/issues/219); PR 4 needs the family EventId range (registered by this plan's PR 4, see "Event ID Allocation"); [#2405](https://github.com/dlrivada/Encina/issues/2405) (open bug: the SQL Server lock ignores its expiry) is a prerequisite for the SQL Server expiry scenario of PR 5
 > **Related**: family `lock-pipeline` ([#221](https://github.com/dlrivada/Encina/issues/221), [#223](https://github.com/dlrivada/Encina/issues/223), [#224](https://github.com/dlrivada/Encina/issues/224), [#225](https://github.com/dlrivada/Encina/issues/225)); #219 (multi-resource lock, sorted acquisition), #724 (telemetry decorator), #741 (tenant-scoped locks), #222 (lock metrics), #226 (RedLock), #2184 (pipeline stages)
@@ -33,9 +33,9 @@ Handlers that need a distributed lock repeat the same code: acquire, check for c
 - `IPipelineBehavior<TRequest, TResponse>.Handle(request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken)` returns `ValueTask<Either<EncinaError, TResponse>>` (`src/Encina/Abstractions/IPipelineBehavior.cs`); `RequestHandlerCallback<TResponse>` takes no token (`RequestHandlerDelegate.cs:9`). `IRequestContext` has `CorrelationId`, `TenantId`, `Identity` (with `UserId`) and `Timestamp`.
 - `PipelineStage` and `[PipelineStage(stage, Order = n)]` exist (`src/Encina/Pipeline/Ordering/PipelineStage.cs`, `PipelineStageAttribute.cs`) but the vocabulary is "declared, not yet applied by the pipeline builders" (#2184 is open).
 - Attribute-driven behaviors register as `services.AddTransient(typeof(IPipelineBehavior<,>), typeof(X<,>))` and cache the attribute in a static field of the generic type (`src/Encina.Caching/ServiceCollectionExtensions.cs:80`, `QueryCachingPipelineBehavior.cs`). Key templates with escaped segments exist in `src/Encina.Caching/KeyGeneration/DefaultCacheKeyGenerator.cs` (`CacheKeyRedactor.EscapeSegment`).
-- Implementers of the interfaces this plan only consumes: five `IDistributedLockProvider` classes (`InMemoryDistributedLockProvider.cs:18`, `Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs:17`, `SqlServerDistributedLockProvider.cs:19`, `Encina.Caching.Memory/MemoryDistributedLockProvider.cs:21`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:17`) and three private `ILockHandle` classes (InMemory `:250`, Redis `:223`, SQL Server `:242`); a declaration-form multi-line search of `src/` and `tests/` finds no test class implementing either. This plan changes neither interface.
+- Implementers of the interfaces this plan only consumes: five `IDistributedLockProvider` classes (`Encina.DistributedLock.InMemory/InMemoryDistributedLockProvider.cs:18` (the InMemory provider is its own package, not the core lock package), `Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs:17`, `SqlServerDistributedLockProvider.cs:19`, `Encina.Caching.Memory/MemoryDistributedLockProvider.cs:21`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:17`) and three private `ILockHandle` classes (InMemory `:250`, Redis `:223`, SQL Server `:242`); a declaration-form multi-line search of `src/` and `tests/` finds no test class implementing either. This plan changes neither interface.
 - `src/Encina.DistributedLock/Encina.DistributedLock.csproj` has `InternalsVisibleTo` for `Encina.UnitTests`, `IntegrationTests`, `ContractTests`, `PropertyTests`, the three lock packages and `Encina.Caching`, but **not** `Encina.GuardTests`: guard tests here target public types.
-- `tests/Encina.ContractTests` has no reference to any `Encina.DistributedLock*` project and no Redis or SQL Server collection (its only collections are `LocalStackCollection` and `ServiceBusEmulatorCollection`); `tests/Encina.IntegrationTests` references all three lock packages, has the shared `ADO-SqlServer` collection, and has no Redis collection (the existing Redis lock test starts its own `RedisContainer`, `RedisDistributedLockIntegrationTests.cs:16`).
+- `tests/Encina.ContractTests` has no reference to any `Encina.DistributedLock*` project and no Redis or SQL Server collection (its only collections are `LocalStackCollection` and `ServiceBusEmulatorCollection`); `tests/Encina.IntegrationTests` references all three lock packages, has the shared `ADO-SqlServer` collection and references `Encina.TestInfrastructure`, which already holds a shared Redis fixture: `RedisFixture` (Testcontainers.Redis; `Connection`, `ConnectionString`, `FlushAsync`) and `RedisCollection` with `Name = "Redis"` in `tests/Encina.TestInfrastructure/Fixtures/RedisFixture.cs` (the second `RedisFixture`, in `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/`, belongs to the caching tests and is not used here). The existing Redis lock test still starts its own `RedisContainer` (`RedisDistributedLockIntegrationTests.cs:16`).
 - `.github/coverage-manifest/Encina.DistributedLock.json` has package targets guard 20 and unit 60 and no per-file targets for existing files; they stay as they are.
 
 ---
@@ -182,10 +182,10 @@ Missing values deny the request in both options: a null or empty tenant gives `l
 
 ### Rationale
 
-- `IAsyncDisposable.DisposeAsync` must not throw and the lock frees itself at its expiry; the static plan mirrors `QueryCachingPipelineBehavior`.
+- `IAsyncDisposable.DisposeAsync` must not throw and the lock frees itself at its expiry; the static plan mirrors `QueryCachingPipelineBehavior`. Three choices are registered separately: (a) a release failure is visible only in telemetry and never changes the handler result (Trivial: the lock expires by itself, and the handler outcome is the business result); (b) an invalid plan is cached as its `Left` (Trivial: it depends only on the request type, so it cannot change between requests); (c) `OperationCanceledException` from the acquire wait propagates (Settled by ADR-052 Decision, "cancellation propagates", and the cancellation rule of ADR-052).
 
-**Class:** Trivial
-**Settled by:** `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` (static attribute field) and ADR-052 Decision (cancellation propagates)
+**Class:** Trivial (a, b); Settled (c)
+**Settled by:** (c) ADR-052 Decision (cancellation propagates); (a, b) mirror `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` (static attribute field)
 
 </details>
 
@@ -225,7 +225,7 @@ Missing values deny the request in both options: a null or empty tenant gives `l
 2. **`Pipeline/DistributedLockResourceTemplate.cs`** (new, internal sealed) - parses `{Name}` placeholders once, binds property getters with compiled delegates, resolves with the escape of Design Choice 6; returns `Either<EncinaError, string>`.
 3. **`Pipeline/DistributedLockPipelineErrorCodes.cs`** (new, public static) - the constants of Design Choice 4 (each with its ADR-062 category in the XML doc and at its creation site).
 4. **`Pipeline/DistributedLockBehaviorOptions.cs`** and **`DistributedLockBehaviorOptionsValidator.cs`** (new) - `MaxResourceLength` (default 200, range 1 to 255, the SQL Server `sp_getapplock` resource limit); validator is `IValidateOptions<DistributedLockBehaviorOptions>`.
-5. **Tests** - template: static name, property, each context placeholder, missing tenant, anonymous user, null property, unsupported type, unknown placeholder, escaping and injectivity (a property test over pairs of values: different values never give the same name), length limit, culture independence; options validator; guard test of the validator. PublicAPI lines and the manifest entries (`mechanical-fixer`).
+5. **Tests** - template: static name, property, each context placeholder, missing tenant, anonymous user, null property, unsupported type, unknown placeholder, escaping and injectivity (a property test in `Encina.PropertyTests` over pairs of values: different values never give the same name), length limit, culture independence; options validator; guard test of the validator. PublicAPI lines and the manifest entries (`mechanical-fixer`).
 
 </details>
 
@@ -342,7 +342,8 @@ REFERENCE FILES:
 1. **`Diagnostics/DistributedLockPipelineLog.cs`** (new, `internal static partial`) - 30600 lock acquired (Debug: request type, lock count), 30601 not acquired (Debug: request type, outcome `contended`), 30602 lock backend fault (Warning: request type, error code), 30603 release failed (Warning: exception type via `ForLogging()`), 30604 invalid attribute or template (Error, logged once per request type: error code). Request type names only: never a resolved resource name, tenant or user value, or `EncinaError.Message`.
 2. **`Diagnostics/DistributedLockPipelineMetrics.cs`** (new, internal) - on the shared `DistributedLockDiagnostics` meter `Encina.DistributedLock` (created by whichever of #724 and #741 lands first): counter `encina.distributed_lock.pipeline.requests` with tags `request.name` (as in `IEncinaMetrics.cs:59`) and `encina.lock.outcome` (`acquired`, `contended`, `failed`); histogram `encina.distributed_lock.pipeline.wait` (`s`). No `_total` suffix (the instrument-name rule of ADR-054); the tenant tag only when multi-tenancy is on, through the helper of #2676; the resolved resource name is never a tag.
 3. **EventId registration** (first of the family to land registers it): `EventIdRanges.cs` field `DistributedLockPipeline = (30600, 30649)`; `src/Encina/PublicAPI.Unshipped.txt` line; one row in `docs/engineering/eventid-block-registry.md` for the range with the bounds 30600-30649 (plus the Blocks row set to `registered`); the entry for `Encina.DistributedLock` in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (appended to the entry #215 creates, or created here when this lands first).
-4. **Tests** - `MeterListener` tests (contended is never `failed`; no resource name or tenant value in any tag or log argument), log tests, justification `.md` files for load and benchmark (thin gate over the provider; the contention path is covered by the provider's own load tests).
+4. **Behavior wiring** - the behavior (PR 2 file, modified) takes the log and metrics (the metrics holder is internal static, so the constructor does not change); the PR 2 behavior unit tests (modified) assert the outcome tag.
+5. **Tests** - `MeterListener` tests (contended is never `failed`; no resource name or tenant value in any tag or log argument), log tests, justification `.md` files for load and benchmark (thin gate over the provider; the contention path is covered by the provider's own load tests).
 
 </details>
 
@@ -377,7 +378,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`tests/Encina.ContractTests/DistributedLock/DistributedLockPipelineContractTests.cs`** (new) and **`Encina.ContractTests.csproj`** (modify: two `ProjectReference` lines to `Encina.DistributedLock` and `Encina.DistributedLock.InMemory`; the project has none today and no Redis or SQL Server fixture) - the behavior contract over the InMemory provider: gate runs the handler only under the lock, releases after every outcome, fails closed on a missing tenant.
-2. **Integration** - SQL Server in the existing `ADO-SqlServer` collection (`DistributedLockPipelineSqlServerIntegrationTests.cs`) and Redis through a new shared collection (`tests/Encina.TestInfrastructure/Fixtures/RedisFixture.cs` and its collection definition; no shared Redis fixture exists, `Testcontainers.Redis` is already referenced): two concurrent requests on one resource run one after the other; the lock is released when the handler returns a `Left`. The SQL Server scenario that relies on lock expiry waits for #2405.
+2. **Integration** - SQL Server in the existing `ADO-SqlServer` collection (`DistributedLockPipelineSqlServerIntegrationTests.cs`) and Redis in the existing shared `[Collection(RedisCollection.Name)]` with `RedisFixture` from `Encina.TestInfrastructure.Fixtures` (both exist on `origin/main`; nothing is created) (`DistributedLockPipelineRedisIntegrationTests.cs`): two concurrent requests on one resource run one after the other; the lock is released when the handler returns a `Left`. The SQL Server scenario that relies on lock expiry waits for #2405.
 
 </details>
 
@@ -391,7 +392,7 @@ CONTEXT:
 - Encina.ContractTests has no lock project reference; add the two ProjectReferences. Integration tests use shared [Collection] fixtures only.
 
 TASK:
-Write the contract test, the shared Redis fixture and collection, and the two integration test classes.
+Write the contract test and the two integration test classes; reuse the existing RedisFixture and RedisCollection (Encina.TestInfrastructure.Fixtures), create no fixture.
 
 KEY RULES:
 - Tests instantiate real implementations; real short expiries on Redis; FakeTimeProvider only on InMemory.
@@ -443,13 +444,13 @@ REFERENCE FILES:
 
 | PR | Content | New | Modified | Tests, manifests, PublicAPI, docs | Total | Lines (est.) |
 |----|---------|-----|----------|------------------------------------|-------|--------------|
-| 1 | Attribute, template, codes, options | 5 | 1 (PublicAPI) | 4 (template tests, options tests, validator guard test, manifest) | 10 | 900 |
+| 1 | Attribute, template, codes, options | 5 | 1 (PublicAPI) | 5 (template tests, injectivity property test, options tests, validator guard test, manifest) | 11 | 900 |
 | 2 | Behavior, registration | 1 | 3 (`ServiceCollectionExtensions.cs`, PublicAPI, README) | 5 (behavior tests, DI test, guard test, manifest, fragment) | 9 | 1,100 |
 | 3 | Several locks | 0 | 2 (behavior, `ServiceCollectionExtensions.cs`) | 3 (multi tests, PublicAPI, manifest) | 5 | 450 |
-| 4 | Log, metrics, range | 2 | 5 (behavior, `EventIdRanges.cs`, core PublicAPI, registry, `EncinaEventIdAllocationTests.cs`) | 5 (metrics tests, log tests, manifest, 2 justification `.md`) | 12 | 750 |
-| 5 | Contract, integration | 5 (contract test, `RedisFixture`, Redis collection, 2 integration classes) | 1 (ContractTests csproj) | 0 | 6 | 600 |
+| 4 | Log, metrics, range | 2 | 6 (behavior, PR 2 behavior tests, `EventIdRanges.cs`, core PublicAPI, registry, `EncinaEventIdAllocationTests.cs`) | 5 (metrics tests, log tests, manifest, 2 justification `.md`) | 13 | 800 |
+| 5 | Contract, integration | 3 (contract test, 2 integration classes; the existing `RedisFixture` and `RedisCollection` are reused) | 1 (ContractTests csproj) | 0 | 4 | 450 |
 
-Total about 3,800 lines. Every PR is at most 15 files and 1,500 lines and builds and passes alone (PR 3 needs #219 PR 1; PR 4 needs nothing else).
+Total about 3,700 lines (900 + 1,100 + 450 + 800 + 450). Every PR is at most 15 files and 1,500 lines and builds and passes alone (PR 3 needs #219 PR 1; PR 4 needs nothing else).
 
 ### Per-file coverage targets (numeric, per flag)
 
@@ -478,7 +479,7 @@ IMPLEMENTATION OVERVIEW:
 2. Phase 2: DistributedLockPipelineBehavior (single attribute), AddEncinaDistributedLockBehavior, tests, README and fragment through specialists.
 3. Phase 3: several attributes through IDistributedMultiLockProvider (#219).
 4. Phase 4: log 30600-30604, metrics, range DistributedLockPipeline 30600-30649 registered in 4 files.
-5. Phase 5: contract tests (ContractTests gets two ProjectReferences) and integration tests (shared Redis fixture is new).
+5. Phase 5: contract tests (ContractTests gets two ProjectReferences) and integration tests (the existing shared RedisFixture and RedisCollection are reused).
 
 KEY PATTERNS:
 - ADR-052 outcomes: contention is Right(None) from the provider and Left not_acquired from the behavior; faults pass through unchanged.
