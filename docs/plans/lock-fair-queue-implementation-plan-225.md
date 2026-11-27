@@ -3,7 +3,7 @@
 > **Issue**: [#225](https://github.com/dlrivada/Encina/issues/225)
 > **Type**: Feature
 > **Complexity**: High (a queue protocol over seven backends, abandoned-waiter handling, a decorator surface, 11 pull requests)
-> **Estimated Scope**: ~1,500 lines of production code + ~2,300 lines of tests (about 6,700 lines over 11 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
+> **Estimated Scope**: ~1,500 lines of production code + ~6,450 lines of tests, manifests and docs (about 7,950 lines over 11 pull requests; the per-PR estimates in "Estimated File Count" sum to it)
 > **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027, DEC-009, AC-027; [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D3, D4, D6.3; [ADR-062](../architecture/adr/062-error-category-contract.md)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (ADR-052 implementation; open, not a pending maintainer decision); PRs 5 to 8 need the packages of [#207](https://github.com/dlrivada/Encina/issues/207), [#208](https://github.com/dlrivada/Encina/issues/208), [#209](https://github.com/dlrivada/Encina/issues/209), [#210](https://github.com/dlrivada/Encina/issues/210) (plans on main, not written); PR 9 needs the decorators of #724, #741 and #223; [#2405](https://github.com/dlrivada/Encina/issues/2405) (open bug: the SQL Server lock ignores its expiry) for SQL Server expiry scenarios
 > **Related**: family `lock-pipeline` (#220, #221, #223, #224); #218 (per-resource counters for fencing, a separate counter from the ticket sequence), #741, #724, #226, #2653
@@ -17,13 +17,13 @@ A lock that waits by polling with retries has no order: a waiter that always los
 1. **Tickets.** A waiter takes a ticket from a store-side sequence of its resource; the lock is attempted only by the head of the queue (lowest `(priority, sequence)` among live tickets). FIFO holds across processes because the order comes from the store, never from a local clock (Design Choice 4).
 2. **ADR-052 shapes.** `IFairDistributedLockProvider : IDistributedLockProvider` has `TryAcquireWithQueueAsync(resource, expiry, wait, retry, LockQueueOptions?, ct)` returning `Either<EncinaError, Option<ILockHandle>>` (the issue's `IAsyncDisposable?` is dropped), `GetQueueDepthAsync` and `GetQueuePositionAsync` returning `Either<EncinaError, int>` and `Either<EncinaError, Option<int>>`.
 3. **Bounded and self-cleaning.** `MaxQueueSize` rejects new waiters with a stable code; a ticket carries a short lease that the waiter refreshes while it waits, so a crashed waiter never blocks the head for longer than the lease.
-4. **Priority, opt-in.** `UsePriority` (default false) orders by priority first; a high-priority waiter can starve low-priority ones (documented).
+4. **Priority, opt-in.** `UsePriority` (default false) orders by priority first; a lower number is served first (0 is the highest priority, range 0 to 1000, Design Choice 7), and waiters with a lower number can starve those with a higher one (documented).
 5. **Composition.** The engine wraps the registered provider and a per-backend `ILockQueueStore`; no lock provider changes its locking code.
 6. **Wake-up by polling.** Waiters poll the head position at a configurable interval; native signals are an optimization recorded as Dilemma 3.
 
 **Standards**: ADR-052; ADR-054; ADR-062; `AGENTS.md` section 3 (ROP, errors never swallowed, asynchronous database calls with a `CancellationToken`, time through `TimeProvider`), section 5 (seven lock providers consistent, SQL differences) and section 6.
 
-**Affected packages**: `Encina.DistributedLock` (interface, engine, options, ordering, registration), `.InMemory`, `.Redis`, `.SqlServer` (one queue store each), the four planned packages (#207 to #210, one store each), the decorators of #741, #724, #223 (forwarding), `Encina` (EventId registration only when this plan is the first of the family with a log); test projects `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`, `Encina.TestInfrastructure`.
+**Affected packages**: `Encina.DistributedLock` (interface, engine, options, ordering, registration), `.InMemory`, `.Redis`, `.SqlServer` (one queue store each), the four planned packages (#207 to #210, one store each), the decorators of #741, #724, #223 (forwarding), `Encina` (none: the EventId range is registered by #220 PR 4); test projects `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`, `Encina.TestInfrastructure`.
 
 **Provider category**: Distributed locks (`AGENTS.md` section 5): all seven providers get a store (InMemory, Redis, SQL Server now; PostgreSQL, MySQL, Azure Blob, DynamoDB when #207 to #210 land); complete for 1.0 only when contract tests cover all seven. Database (10) does not apply to the lock stores (SQL schemas follow the SQL differences of `AGENTS.md` section 5).
 
@@ -32,9 +32,10 @@ A lock that waits by polling with retries has no order: a waiter that always los
 - Nothing of this feature exists: no `IFairDistributedLockProvider`, `LockQueueOptions` or queue type under `src/`. Waiting is a retry loop: `TryAcquireAsync(resource, expiry, wait, retry, ct)` retries every `retry` until `wait` elapses (`InMemoryDistributedLockProvider.cs`, `RedisDistributedLockProvider.cs`), so any waiter may win any attempt. SQL Server waits inside `sp_getapplock` (`SqlServerDistributedLockProvider.cs`), whose waiter order is not a contract of Encina. #2667 (open) changes the return shapes.
 - **The Redis provider takes one shared `IConnectionMultiplexer`** (`Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs`, constructor): the issue's `BLPOP` would hold that shared connection for its timeout, which is why this plan polls (Design Choice 3).
 - The issue's Redis script (`ZRANGE ... SET lock ...`) races a plain `TryAcquireAsync` caller that takes the lock key between the head check and the `SET`; the engine lets the underlying lock arbitrate (the head only calls the normal `TryAcquireAsync`), and a caller that bypasses the queue by calling the plain API can still barge in. Fairness holds among callers that use the queue (documented).
-- **Implementers**: this plan adds `IFairDistributedLockProvider`, whose implementers are the new engine (`FairDistributedLockProvider`) and the forwarding decorators of #741 (tenant), #724 (telemetry) and #223 (auto-extend): none exists yet; no existing class implements it. It adds no member to `ILockHandle` or `IDistributedLockProvider`; the five existing `IDistributedLockProvider` classes (InMemory, Redis, SQL Server, `Encina.Caching.Memory/MemoryDistributedLockProvider.cs:21`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:17`) and the three private `LockHandle` classes (InMemory `:250`, Redis `:223`, SQL Server `:242`) are untouched; a declaration-form multi-line search of `src/` and `tests/` finds no test class implementing either interface. `ILockQueueStore` is new: its implementers are the seven stores of the Provider Matrix (three exist as packages, four not written).
-- `Encina.DistributedLock` has `InternalsVisibleTo` for `Encina.UnitTests`, `IntegrationTests`, `ContractTests` and `PropertyTests` (so the ordering rules can be property-tested), not for `Encina.GuardTests` (public types only). `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and no Redis collection.
-- `.github/coverage-manifest/Encina.DistributedLock.json`: package targets guard 20, unit 60; per-file Redis target for `RedisDistributedLockProvider.cs` (unit 95, guard 14, integration 70) is untouched by this plan.
+- **Implementers**: this plan adds `IFairDistributedLockProvider`, whose implementers are the new engine (`FairDistributedLockProvider`) and the forwarding decorators of #741 (tenant), #724 (telemetry) and #223 (auto-extend): none exists yet; no existing class implements it. It adds no member to `ILockHandle` or `IDistributedLockProvider`; the five existing `IDistributedLockProvider` classes (InMemory, Redis, SQL Server, `Encina.Caching.Memory/MemoryDistributedLockProvider.cs:21`, `Encina.Caching.Redis/RedisDistributedLockProvider.cs:17`) and the three private `LockHandle` classes (InMemory `:250`, Redis `:223`, SQL Server `:242`) are untouched; a declaration-form multi-line search of `src/` and `tests/` finds no test class implementing either interface. `ILockQueueStore` is new: its implementers are the seven stores of the Provider Matrix (three exist as packages, four not written). The MongoDB lock provider of #609 (plan on main) is an eighth `IDistributedLockProvider` outside the seven providers of SPEC-000 DEC-009; it gets no queue store in this plan: the engine could wrap it, but `AddEncinaDistributedLockFairQueue` fails at startup when no `ILockQueueStore` is registered, so a MongoDB-backed application cannot enable the queue until a store exists for it.
+- `Encina.DistributedLock` has `InternalsVisibleTo` for `Encina.UnitTests`, `IntegrationTests`, `ContractTests` and `PropertyTests` (so the ordering rules can be property-tested), not for `Encina.GuardTests` (public types only). `tests/Encina.ContractTests` references no `Encina.DistributedLock*` project and has no Redis or SQL Server collection; `tests/Encina.IntegrationTests` has the shared `ADO-SqlServer` collection and references `Encina.TestInfrastructure`, which already has the shared `RedisFixture` and `RedisCollection` (`Name = "Redis"`) in `tests/Encina.TestInfrastructure/Fixtures/RedisFixture.cs` (reused, not created).
+- `.github/coverage-manifest/Encina.DistributedLock.json`: package targets guard 20, unit 60; per-file Redis target for `RedisDistributedLockProvider.cs` (unit 95, guard 14, integration 70) and SQL Server target for `SqlServerDistributedLockProvider.cs` (unit 57, guard 6, integration 93) are untouched by this plan.
+- `RedisDistributedLockHealthCheck` (`src/Encina.DistributedLock.Redis/Health/RedisDistributedLockHealthCheck.cs`) is an `IEncinaHealthCheck` with a constructor `(IConnectionMultiplexer, ProviderHealthCheckOptions)`, `Name => _options.Name ?? "redis-distributed-lock"`, an instance `Tags => _options.Tags ?? ["redis", "distributed-lock", "ready"]`, and a `try`/`catch` returning `HealthCheckResult`; it has no `DefaultName`, no static `Tags` and no scope.
 
 ---
 
@@ -108,14 +109,14 @@ A lock that waits by polling with retries has no order: a waiter that always los
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A store-side, per-resource sequence assigned at enqueue (Redis `INCR`, SQL `IDENTITY`/sequence, PostgreSQL sequence, MySQL `AUTO_INCREMENT`, DynamoDB atomic `ADD` on a counter item, Azure Blob counter blob with `If-Match` retries, InMemory `Interlocked`); order is `(priority, sequence)` with `priority` ignored unless `UsePriority`** | True FIFO across processes whatever their clocks | One counter per resource per backend |
+| **A) A store-side, per-resource sequence assigned at enqueue (Redis `INCR`, SQL `IDENTITY`/sequence, PostgreSQL sequence, MySQL `AUTO_INCREMENT`, DynamoDB atomic `ADD` on a counter item, Azure Blob counter blob with `If-Match` retries, InMemory `Interlocked`); order is `(priority, sequence)` ascending (a lower priority number is served first) with `priority` ignored unless `UsePriority`** | True FIFO across processes whatever their clocks | One counter per resource per backend |
 | **B) The waiter's local timestamp as the sorted-set score (the issue's `ZADD ... {timestamp}`)** | No counter | Clock skew between nodes lets a node with a fast clock jump the queue: not FIFO |
 
 ### Chosen Option: **A**
 
 ### Rationale
 
-- The issue's goal is "FIFO ordering of lock acquisition"; only A delivers it across nodes. In Redis the score is `priority * 2^40 + sequence` (exact in a double up to `2^53`), so priorities are limited to 0 to 1000 and the sequence is per-resource (a resource would need over 10^12 waiters to overflow).
+- The issue's goal is "FIFO ordering of lock acquisition"; only A delivers it across nodes. In Redis the score is `priority * 2^40 + sequence` (exact in a double up to `2^53`, so a priority up to 8191 is representable; the validated range is Design Choice 7) and the sequence is per-resource (a resource would need over 10^12 waiters to overflow). The ordering source is settled; the numbers and the priority direction are Design Choice 7.
 
 **Class:** Settled
 **Settled by:** issue #225 Summary and Motivation ("ensure FIFO ordering of lock acquisition")
@@ -132,14 +133,13 @@ A lock that waits by polling with retries has no order: a waiter that always los
 | **A) Every ticket has a lease (`TicketLease`, default 10 s) refreshed on each poll; head selection skips expired tickets and removes them best effort (logged as abandoned); on cancellation or timeout the waiter removes its own ticket in a `finally` with `CancellationToken.None`-safe cleanup, logged by code or type only** | A crashed waiter blocks the head for at most one lease; no stuck queue | One refresh write per poll |
 | **B) No lease: a ticket lives until its owner removes it** | No refresh traffic | A crashed head blocks every waiter forever |
 
-### Chosen Option: **A**
+### Chosen Option: **A** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Only A keeps the queue live; the refresh is the poll the waiter already makes, so it costs no extra call on stores that can read and refresh in one operation.
+- A wins because a crashed head must not stop the queue (the lock itself frees at its expiry, `ILockHandle.ExpiresAtUtc`, and a queue that outlives it would be the weaker link); B wins when refresh traffic matters more than crash recovery. The refresh is the poll the waiter already makes, so it costs no extra call on stores that can read and refresh in one operation. No rule of `AGENTS.md` mandates either option, so this is a Dilemma, not a rule citation.
 
-**Class:** Trivial
-**Settled by:** `AGENTS.md` section 3 (background and waiting loops never leave failure unhandled; a lock must free itself, the rule behind lock expiry in `ILockHandle.ExpiresAtUtc`)
+**Class:** Dilemma
 
 </details>
 
@@ -163,6 +163,46 @@ A lock that waits by polling with retries has no order: a waiter that always los
 
 </details>
 
+<details>
+<summary><strong>7. Priority direction and default numbers</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A lower number is served first (0 is the highest priority), the order is ascending `(priority, sequence)`, the same as the sorted-set score and the SQL `ORDER BY`; `LockQueueOptions.Priority` is validated `0..1000` (code `lock_queue.invalid_options`, `Validation`); defaults: `Priority` 100, `MaxQueueSize` 100, `PollInterval` 200 ms (`> 0`, `<= 5 s`), `TicketLease` 10 s (greater than `PollInterval * 3`)** | No inversion of the stored order; reads like Unix `nice` and like a rank | A caller may expect "high number is high priority" |
+| **B) A higher number is served first; the stored score is `(1000 - priority)`** | Matches the everyday reading of "high priority" | The store order and the API order are inverted; one more conversion to test in seven stores |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins for one ordering rule across stores; B wins for the reading most callers expect. The defaults have no external source: they are options, so the answer changes a default, not the design. Tests cover both ends of the range, a reversed pair (priority 0 beats 100 with `UsePriority`, ignored without it) and the rejected out-of-range value.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Registration of `IFairDistributedLockProvider`</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `AddEncinaDistributedLockFairQueue` (1) validates options, (2) registers the engine as a singleton `FairDistributedLockProvider` over the already registered `IDistributedLockProvider` and the registered `ILockQueueStore` and replaces the `IDistributedLockProvider` descriptor with it (bottom of the chain), and (3) registers `IFairDistributedLockProvider` as a factory that returns the outermost registered `IDistributedLockProvider` when it implements the fair interface (the decorators of #741, #724, #223 do after PR 9) and otherwise throws `InvalidOperationException` naming the decorator type; it fails at startup when no provider or no store is registered; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` in each case** | A consumer asking for the fair interface gets the outermost provider (tenant scoping and telemetry apply); a decorator that does not forward is a startup failure, not a silent bypass | The call order matters (decorators registered after the engine) |
+| **B) `IFairDistributedLockProvider` resolves the engine directly** | Always available | Bypasses the tenant, telemetry and auto-extend decorators: the queue key would not be the scoped name |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins whenever decorators are used (Design Choice 2); B wins for an application that wants the queue with no decorators and the smallest registration. All singletons: no scoped service is injected into a singleton.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -174,10 +214,10 @@ A lock that waits by polling with retries has no order: a waiter that always los
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Queue/IFairDistributedLockProvider.cs`**, **`LockQueueOptions.cs`**, **`ILockQueueStore.cs`**, **`LockQueueErrorCodes.cs`** (new, `src/Encina.DistributedLock/`) - `LockQueueOptions` (`MaxQueueSize` 100, `Priority` 100, `UsePriority` false, `WaiterId` optional so a caller can later ask for its position); `ILockQueueStore`: `EnqueueAsync`, `IsHeadAsync` (also refreshes the lease), `RemoveAsync`, `DepthAsync`, `PositionAsync` (all `Either` with the token).
-2. **`Queue/LockQueueOrdering.cs`** (new, internal static) - `(priority, sequence)` comparison and the Redis score encoding; **`FairLockOptions.cs`** and **`FairLockOptionsValidator.cs`** (new) - `PollInterval`, `TicketLease`.
+1. **`Queue/IFairDistributedLockProvider.cs`**, **`LockQueueOptions.cs`**, **`ILockQueueStore.cs`**, **`LockQueueErrorCodes.cs`** (new, `src/Encina.DistributedLock/`) - `LockQueueOptions` (`MaxQueueSize`, `Priority` and `UsePriority` false with the numbers and the direction of Design Choice 7; `WaiterId` optional so a caller can later ask for its position; an out-of-range value is `Left` `lock_queue.invalid_options`); `ILockQueueStore`: `EnqueueAsync`, `IsHeadAsync` (also refreshes the lease), `RemoveAsync`, `DepthAsync`, `PositionAsync` (all `Either` with the token).
+2. **`Queue/LockQueueOrdering.cs`** (new, internal static) - `(priority, sequence)` comparison and the Redis score encoding; **`FairLockOptions.cs`** and **`FairLockOptionsValidator.cs`** (new) - `PollInterval`, `TicketLease` (defaults and bounds of Design Choice 7).
 3. **`Queue/FairDistributedLockProvider.cs`** (new, public sealed; constructor `(IDistributedLockProvider inner, ILockQueueStore store, IOptions<FairLockOptions>, TimeProvider? timeProvider = null)`) - validate; enqueue (queue full is `Left`); loop until head, then call the inner `TryAcquireAsync` with the remaining wait; on acquire remove the ticket and return the handle; on timeout, cancellation or fault remove the ticket (Design Choice 5); one deadline for the call; the plain `IDistributedLockProvider` members forward to the inner provider unqueued.
-4. **Tests** - against a test store: FIFO order of ten waiters, priority order when on and ignored when off, queue full, abandoned head skipped after the lease, cancellation removes the ticket, one deadline, faults returned with their code, property tests of the ordering (FsCheck: the order is total and stable); validator and constructor guard tests. PublicAPI lines and manifest entries (`mechanical-fixer`).
+4. **Tests** - against a test store: FIFO order of ten waiters, priority order when on and ignored when off, queue full, abandoned head skipped after the lease, cancellation removes the ticket, one deadline, faults returned with their code, property tests of the ordering (FsCheck: the order is total and stable); priority direction (lower number first, both ends of 0..1000, out of range rejected); validator and constructor guard tests. PublicAPI lines and manifest entries (`mechanical-fixer`).
 
 </details>
 
@@ -215,8 +255,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Queue/InMemoryLockQueueStore.cs`** (new, `src/Encina.DistributedLock.InMemory/`; `ConcurrentDictionary` of per-resource sorted lists under one lock per resource, `Interlocked` sequence, `TimeProvider` for leases).
-2. **`ServiceCollectionExtensions.cs`** of the core (modify) - `AddEncinaDistributedLockFairQueue(Action<FairLockOptions>?)`: validated options, decorates the registered provider with the engine at the bottom of the chain (Design Choice 2), `InvalidOperationException` naming the missing call when no provider or no store is registered; the InMemory package registers its store with `TryAddSingleton` in `AddEncinaDistributedLockInMemory` (modify, InMemory `ServiceCollectionExtensions.cs`).
-3. **Tests** - the engine over the InMemory provider and store with `FakeTimeProvider`; DI test with `ValidateOnBuild` and `ValidateScopes` with and without a store; README section and changelog fragment `changelog.d/225-fair-lock-queue.added.md` (specialists).
+2. **`ServiceCollectionExtensions.cs`** of the core (modify) - `AddEncinaDistributedLockFairQueue(Action<FairLockOptions>?)`: validated options, decorates the registered provider with the engine at the bottom of the chain (Design Choice 2), registers `IFairDistributedLockProvider` as the factory of Design Choice 8, `InvalidOperationException` naming the missing call when no provider or no store is registered; the InMemory package registers its store with `TryAddSingleton` in `AddEncinaDistributedLockInMemory` (modify, InMemory `ServiceCollectionExtensions.cs`).
+3. **Tests** - the engine over the InMemory provider and store with `FakeTimeProvider`; DI test with `ValidateOnBuild` and `ValidateScopes` with and without a store, and resolving `IFairDistributedLockProvider` (engine outermost, and an outer decorator that does not forward fails the build); README section and changelog fragment `changelog.d/225-fair-lock-queue.added.md` (specialists).
 
 </details>
 
@@ -248,9 +288,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **PR 3, `Queue/RedisLockQueueStore.cs`** (new, `Encina.DistributedLock.Redis`) - sorted set per resource with the score of Design Choice 4, a counter key for the sequence, a ticket-lease key per waiter, one Lua script for "is head and refresh" that skips and removes expired tickets; no blocking commands on the shared multiplexer; registration `TryAdd` in the Redis `ServiceCollectionExtensions.cs` (modify).
+1. **PR 3, `Queue/RedisLockQueueStore.cs`** (new, `Encina.DistributedLock.Redis`) - sorted set per resource with the score of Design Choice 4, a counter key for the sequence, a ticket-lease key per waiter, one Lua script for "is head and refresh" that skips and removes expired tickets. Redis Cluster: the script touches several keys, which must share a slot, so every key of one resource carries the same hash tag of the name the store receives (already the tenant-scoped name under Design Choice 2 option A): `{KeyPrefix}:queue:{<name>}:zset`, `{KeyPrefix}:queue:{<name>}:seq`, `{KeyPrefix}:queue:{<name>}:lease:<waiter>`; the options validator rejects a `KeyPrefix` containing `{`, and the tests assert all keys of one script hash to the same slot (`CROSSSLOT` otherwise); no blocking commands on the shared multiplexer; registration `TryAdd` in the Redis `ServiceCollectionExtensions.cs` (modify).
 2. **PR 4, `Queue/SqlServerLockQueueStore.cs`** (new) + `SqlServerLockQueueSchema.cs` (new) + `SqlServerLockOptions.cs` (modify: `CreateQueueTable`, table name) - `LockQueue` table as in the issue plus an `IDENTITY` sequence and `LeaseExpiresAtUtc`; `TOP (1)`, `@param`, `OpenAsync` and `ExecuteNonQueryAsync` with the token; opt-in creation, `Left` `lock_queue.store_unavailable` when the table is absent.
-3. **Tests per PR** - unit (mocked `IDatabase`; schema text), guard, integration in shared fixtures (`ADO-SqlServer`; Redis through the shared fixture added by #220 PR 5 or by PR 3 when first), manifest rows that keep every existing target, PublicAPI lines.
+3. **Tests per PR** - unit (mocked `IDatabase`; schema text), guard, integration in shared fixtures (`ADO-SqlServer`; Redis through the existing `[Collection(RedisCollection.Name)]` and `RedisFixture` of `Encina.TestInfrastructure.Fixtures`, nothing created), manifest rows that keep every existing target, PublicAPI lines.
 
 </details>
 
@@ -349,9 +389,9 @@ REFERENCE FILES:
 
 1. **`Diagnostics/FairLockLog.cs`** (new, `internal static partial`) - 30617 waiter enqueued (Debug), 30618 lock granted from the queue (Debug: waited seconds), 30619 queue full so the waiter was rejected (Warning), 30620 abandoned ticket removed (Warning), 30621 wait exceeded the starvation threshold (Warning: waited seconds), 30622 queue store failure (Warning: error code). Ids 30617-30622 of the family range `DistributedLockPipeline` (30600-30649).
 2. **`Diagnostics/FairLockMetrics.cs`** (new, internal) - counter `encina.distributed_lock.queue.requests` (tag `encina.lock.outcome`: `granted`, `timeout`, `full`, `failed`), histogram `encina.distributed_lock.queue.wait` (`s`), up-down counter `encina.distributed_lock.queue.waiters`; no `_total`; no resource name; tenant tag only with multi-tenancy (#2676).
-3. **`Health/FairLockHealthCheck.cs`** (new; `IEncinaHealthCheck` with `DefaultName`, static `Tags`, scoped resolution through `IServiceProvider.CreateScope()`): healthy when the store answers a depth probe on a fixed sentinel name, `Degraded` above a configured wait threshold of the last window, `Unhealthy` on a store `Left` (error code only).
-4. **EventId registration** only if this PR is the first of the family with a log (`EventIdRanges.cs` field `DistributedLockPipeline = (30600, 30649)`, core `PublicAPI.Unshipped.txt`, one registry row with the same bounds, `AssemblyRanges` entry; owned by #220 PR 4 by default).
-5. **Tests** - `MeterListener`, log and health tests; load and benchmark: a load test of contention fairness is implemented (concurrent feature) and a benchmark justification `.md` file.
+3. **`Health/FairLockHealthCheck.cs`** (new, public; the pattern of `RedisDistributedLockHealthCheck` as it is: an `IEncinaHealthCheck` with a constructor `(ILockQueueStore, ProviderHealthCheckOptions)`, `Name => _options.Name ?? "distributed-lock-fair-queue"`, instance `Tags => _options.Tags ?? ["distributed-lock", "fair-queue", "ready"]`, a `try`/`catch` returning `HealthCheckResult`; the store is a singleton, so no scope is created): healthy when the store answers a depth probe on a fixed sentinel name, `Degraded` above a configured wait threshold of the last window, `Unhealthy` on a store `Left` (error code only). Registered in `ServiceCollectionExtensions.cs` (modify) and listed in PublicAPI (modify).
+4. **EventId range**: not registered here; `DistributedLockPipeline = (30600, 30649)` is registered by #220 PR 4 (one registry row, identical bounds), so this PR waits for it and never registers the row.
+5. **Tests** - `MeterListener`, log and health tests; a load test of contention fairness is implemented (`Encina.LoadTests`, concurrent feature) and a benchmark justification `.md` file.
 
 </details>
 
@@ -362,8 +402,8 @@ REFERENCE FILES:
 You are implementing Phase 6 of issue #225: telemetry and health of the fair queue.
 
 CONTEXT:
-- Ids 30617-30622 belong to the family range DistributedLockPipeline, registered by #220 PR 4 or by the first family PR with a log.
-- Health checks follow RedisDistributedLockHealthCheck: DefaultName const, Tags static array, scoped resolution.
+- Ids 30617-30622 belong to the family range DistributedLockPipeline, registered by #220 PR 4 (not by this PR).
+- The health check follows RedisDistributedLockHealthCheck as it is: a constructor taking its dependency and ProviderHealthCheckOptions, Name and Tags from the options with defaults, try/catch returning HealthCheckResult.
 
 TASK:
 Write FairLockLog, FairLockMetrics, FairLockHealthCheck, emit them from the engine and add the tests.
@@ -384,7 +424,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`tests/Encina.ContractTests/DistributedLock/FairLockContractTests.cs`** (new, abstract base plus an InMemory subclass) and **`Encina.ContractTests.csproj`** (modify: two `ProjectReference` lines unless #220 PR 5 added them; none exist today, nor any Redis or SQL Server fixture): FIFO of waiters, queue full, abandoned head skipped. Redis and SQL Server subclasses live in `Encina.IntegrationTests` (shared fixtures); each planned provider adds one subclass in its own PR.
+1. **`tests/Encina.ContractTests/DistributedLock/FairLockContractTests.cs`** (new, abstract base plus an InMemory subclass) and **`Encina.ContractTests.csproj`** (modify: two `ProjectReference` lines unless #220 PR 5 added them; none exist today, nor any Redis or SQL Server fixture): FIFO of waiters, queue full, abandoned head skipped. Redis and SQL Server subclasses live in `Encina.IntegrationTests` (2 more files, counted in PR 11; Redis uses the existing `RedisCollection`, SQL Server `ADO-SqlServer`); each planned provider adds one subclass in its own PR.
 2. **Property tests** (`tests/Encina.PropertyTests/DistributedLock/FairLockOrderingPropertyTests.cs`, new; the project already references the lock projects): for any interleaving of enqueue, refresh and expiry the grant order equals the `(priority, sequence)` order of the live tickets.
 
 </details>
@@ -455,14 +495,14 @@ REFERENCE FILES:
 |----|---------|-----|----------|------------------------------------|-------|--------------|
 | 1 | Contracts, ordering, engine | 8 | 1 (PublicAPI) | 5 (engine tests, ordering property tests, options tests, guard test, manifest) | 14 | 1,400 |
 | 2 | InMemory store, registration | 1 | 3 (core and InMemory `ServiceCollectionExtensions.cs`, README) | 5 (store tests, DI test, guard test, manifest, fragment) + PublicAPI | 10 | 800 |
-| 3 | Redis store | 1 | 2 (`ServiceCollectionExtensions.cs`, PublicAPI) | 4 (unit, guard, integration, manifest) (+2 Redis fixture if first) | 7 (9) | 700 |
+| 3 | Redis store | 1 | 2 (`ServiceCollectionExtensions.cs`, PublicAPI) | 4 (unit, guard, integration, manifest; the Redis fixture and collection already exist) | 7 | 700 |
 | 4 | SQL Server store | 2 (store, schema) | 3 (options, `ServiceCollectionExtensions.cs`, PublicAPI) | 4 (unit, guard, integration, manifest) | 9 | 700 |
 | 5 to 8 | One PR per planned provider | 2 | 3 | 4 | about 9 each | about 550 each |
 | 9 | Decorator forwarding | 0 | 3 (the three decorators) | 5 (tests, PublicAPI, manifests) | 8 | 500 |
-| 10 | Log, metrics, health (+4 if first of the family) | 3 | 2 | 6 (3 test files, manifest, 2 justification `.md`) | 11 (15) | 900 |
-| 11 | Contract, property | 2 contract + 1 property | 1 (ContractTests csproj) | 0 | 4 | 500 |
+| 10 | Log, metrics, health (waits for #220 PR 4, which registers the range) | 3 (log, metrics, health check) + 1 (load test) | 3 (engine, `ServiceCollectionExtensions.cs`, PublicAPI) | 5 (3 test files, manifest, 1 benchmark justification `.md`) | 12 | 1,000 |
+| 11 | Contract, property, integration subclasses | 2 contract (base, InMemory subclass) + 1 property + 2 integration (Redis, SQL Server subclasses) | 1 (ContractTests csproj) | 0 | 6 | 650 |
 
-Total about 6,700 lines over 11 PRs. Every PR is at most 15 files and 1,500 lines and builds and passes alone (PRs 5 to 8 wait for their packages; PR 9 waits for #741, #724 and #223).
+Total about 7,950 lines over 11 PRs (1,400 + 800 + 700 + 700 + 4 x 550 + 500 + 1,000 + 650). Every PR is at most 15 files and 1,500 lines and builds and passes alone (PRs 5 to 8 wait for their packages; PR 9 waits for #741, #724 and #223).
 
 ### Per-file coverage targets (numeric, per flag)
 
@@ -496,7 +536,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - ADR-052 shapes; ticket order from a store-side sequence; ticket leases against abandoned waiters; no blocking commands on the shared Redis multiplexer.
 - The engine sits at the bottom of the decorator chain so the queue key is the scoped lock name.
-- Dilemmas 1, 2, 3 and 6 are pending the maintainer: implement the recommended options only after he answers.
+- Dilemmas 1, 2, 3, 5, 6, 7 and 8 are pending the maintainer: implement the recommended options only after he answers.
 - SQL Server ignores lock expiry until #2405: state it, never claim expiry-based behavior there.
 
 REFERENCE FILES:
@@ -533,7 +573,7 @@ REFERENCE FILES:
 | #2667 ADR-052 implementation | open | All PRs |
 | #207, #208, #209, #210 packages | plans on main, not written | PRs 5 to 8 |
 | #741, #724, #223 decorators | plans on main | PR 9 |
-| Family EventId range | registered by #220 PR 4 or the first family PR with a log | PR 10 |
+| Family EventId range | registered by #220 PR 4 only | PR 10 |
 | #2405 SQL Server expiry | open bug | Any SQL Server expiry statement |
 | #2653 duplicate caching lock providers | open | The engine wraps whichever provider is registered; the two caching providers must follow ADR-052 |
 
@@ -542,4 +582,4 @@ REFERENCE FILES:
 ## Next Steps
 
 1. After #2667 merges open PR 1, then PRs 2, 3, 4; PRs 5 to 8 as each package merges; PR 9 after the decorators; PR 10 after PR 2; PR 11 after PR 2.
-2. The maintainer answers Dilemmas 1, 2, 3 and 6 when work on the issue starts; PRs are written for the recommended answers.
+2. The maintainer answers Dilemmas 1, 2, 3, 5, 6, 7 and 8 when work on the issue starts; PRs are written for the recommended answers.
