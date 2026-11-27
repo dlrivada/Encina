@@ -460,6 +460,25 @@ Plans claim single ids inside a range a package already owns. These claims are n
 | Core | 10084-10085 | #132 |
 | Messaging | 2977-2979 (reserved if planned) | #176 |
 
+### Plan claims inside existing ranges and blocks (2026-11-27)
+
+| Range | Ids | Plan |
+| --- | --- | --- |
+| Marten | 2747 | #764 (merged plan) |
+| SecurityAudit 5000-5099 | 5019-5023 | #4384 (merged plan) |
+| CachingPatterns (block 450-499, cache-patterns-1) | 488-489 | #4396 |
+| CachingPatterns (block 450-499, cache-patterns-1) | 490-493 | #4398 |
+| CachingPatterns (block 450-499, cache-patterns-1) | 494-495 | #4397 |
+| cache-patterns-2 block 500-549 | 520-523 | #4411 |
+| cache-patterns-2 block 500-549 | 524-525 | #4412 |
+| cache-patterns-2 block 500-549 | 526-527 | #4413 |
+| cache-patterns-2 block 500-549 | 528-533 | #4414 (#4416 reuses 528 and 60351) |
+| cache-patterns-2 block 500-549 | 534-537 | #4415 |
+| cache-patterns-2 block 500-549 | 538-541 | #4417; 542-549 free |
+| ResilienceLoadShedding 912-923 | 917-919 | #4395 |
+| ResilienceProvider 970-984 (#742 range) | 976-980 | #4392 |
+| Resilience timeouts block 950-999 | 955-957 | #4391 |
+| Polly 3900-3949 | 3925-3930 | #4380 |
 ## ADR numbers
 
 Plans name an ADR number only from this table; otherwise they write "ADR number assigned when the ADR pull request opens". Existing: 063 is the last merged; 059 and 061 are reserved in [the ADR index](../architecture/adr/index.md).
