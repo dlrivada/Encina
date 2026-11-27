@@ -17,7 +17,12 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": { "unit": 85, "guard": 20 },
+      "justifications": {
+        "unit": "Unit tests drive the builder, the failure expectations and the category-based status mapping through real Pact files; left uncovered are the mock-server error branches that the integration flag exercises.",
+        "guard": "The guard flag reaches the argument checks and the setup lines they pass through; mock-server interaction and status mapping run in the unit and integration flags."
+      }
     },
     "EncinaPactFixture.cs": {
       "defaultTests": [
@@ -33,7 +38,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 90, "guard": 10 },
+      "justifications": {
+        "unit": "Unit tests run the verifier on real Pact files and handlers, including the category-based status mapping; left uncovered are the ReflectionTypeLoadException and rare transport-failure branches.",
+        "guard": "The guard flag reaches only the argument checks and the configuration setup; verification, matching and status mapping run in the unit flag."
+      }
     },
     "PactExtensions.cs": {
       "defaultTests": [

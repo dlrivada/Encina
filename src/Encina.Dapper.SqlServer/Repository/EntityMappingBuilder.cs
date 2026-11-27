@@ -144,21 +144,21 @@ public sealed class EntityMappingBuilder<TEntity, TId>
         if (string.IsNullOrWhiteSpace(_tableName))
         {
             return EncinaErrors.Create(
-                EntityMappingErrorCodes.MissingTableName,
+                EntityMappingErrorCodes.MissingTableName, ErrorCategory.Internal,
                 $"Table name must be specified. Call {nameof(ToTable)}() before {nameof(Build)}().");
         }
 
         if (_idSelector is null || string.IsNullOrWhiteSpace(_idColumnName))
         {
             return EncinaErrors.Create(
-                EntityMappingErrorCodes.MissingPrimaryKey,
+                EntityMappingErrorCodes.MissingPrimaryKey, ErrorCategory.Internal,
                 $"Primary key must be specified. Call {nameof(HasId)}() before {nameof(Build)}().");
         }
 
         if (_columnMappings.Count == 0)
         {
             return EncinaErrors.Create(
-                EntityMappingErrorCodes.MissingColumnMappings,
+                EntityMappingErrorCodes.MissingColumnMappings, ErrorCategory.Internal,
                 $"At least one column mapping is required. Call {nameof(MapProperty)}() or {nameof(HasId)}() before {nameof(Build)}().");
         }
 

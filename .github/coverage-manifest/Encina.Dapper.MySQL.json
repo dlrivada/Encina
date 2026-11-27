@@ -276,7 +276,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 89,
+        "guard": 63
+      },
+      "justifications": {
+        "unit": "Unit tests drive the builder validation errors and the mapping paths they reach (measured 89%); the MissingColumnMappings branch cannot be reached through the public API because HasId always adds a column mapping.",
+        "guard": "Guard tests exercise the argument checks and chaining of the builder (measured 63%)."
+      }
     },
     "Repository/FunctionalRepositoryDapper.cs": {
       "defaultTests": [
@@ -465,7 +473,13 @@
         "integration"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "unit": 86
+      },
+      "justifications": {
+        "unit": "Unit tests cover the failure paths and the empty upsert with a substituted IDbConnection (Dapper async rejects it) (measured 86%); the successful SQL paths need a real database."
+      }
     },
     "Sharding/ReferenceTables/ReferenceTableStoreFactoryDapper.cs": {
       "defaultTests": [
@@ -483,7 +497,15 @@
       "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
       "override": [
         "integration"
-      ]
+      ],
+      "targets": {
+        "unit": 53,
+        "guard": 15
+      },
+      "justifications": {
+        "unit": "Unit tests run all replica-selection paths of SelectReplicaConnectionString (measured 53%); the connection-opening code needs a real database.",
+        "guard": "Guard tests cover the constructor checks (measured 15%)."
+      }
     },
     "Sharding/ShardingServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -504,7 +526,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 49,
+        "guard": 16
+      },
+      "justifications": {
+        "unit": "Unit tests drive the builder error and success paths (measured 49%); the rest of the file is the mapping classes and unused members.",
+        "guard": "Guard tests exercise the argument checks of the builder; the MySQL guard suite reaches less of the file than the other providers (measured 16%)."
+      }
     },
     "SoftDelete/SoftDeleteSpecificationSqlBuilder.cs": {
       "defaultTests": [
@@ -593,7 +623,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 81,
+        "guard": 8
+      },
+      "justifications": {
+        "unit": "Unit tests drive the builder validation errors and the mapping paths they reach (measured 81%); the MissingColumnMappings branch cannot be reached through the public API because HasId always adds a column mapping.",
+        "guard": "Guard tests exercise the argument checks and chaining of the builder (measured 8%)."
+      }
     },
     "TypeHandlers/GuidTypeHandler.cs": {
       "defaultTests": [

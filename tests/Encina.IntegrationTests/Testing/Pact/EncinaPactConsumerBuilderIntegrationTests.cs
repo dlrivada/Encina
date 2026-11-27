@@ -68,6 +68,57 @@ public sealed class EncinaPactConsumerBuilderIntegrationTests : IDisposable
         _sut.GetMockServerUri().ShouldBe(capturedUri);
     }
 
+    [Theory]
+    [InlineData(ErrorCategory.Validation, 400)]
+    [InlineData(ErrorCategory.NotFound, 404)]
+    [InlineData(ErrorCategory.Forbidden, 403)]
+    [InlineData(ErrorCategory.Conflict, 409)]
+    [InlineData(ErrorCategory.RateLimited, 429)]
+    [InlineData(ErrorCategory.Timeout, 504)]
+    [InlineData(ErrorCategory.Internal, 500)]
+    public async Task CommandFailureExpectation_PackageSpecificCode_AnswersTheStatusOfItsCategory(
+        ErrorCategory category,
+        int expectedStatus)
+    {
+        // Arrange
+        var command = new TestCreateOrderCommand(Guid.NewGuid(), "Test");
+        var error = EncinaErrors.Create("orders.package_specific", category, "The order failed.");
+        _sut.WithCommandFailureExpectation<TestCreateOrderCommand, TestOrderDto>(command, error);
+        var status = 0;
+
+        // Act
+        await _sut.VerifyAsync(async uri =>
+        {
+            using var client = new HttpClient { BaseAddress = uri };
+            var httpResponse = await client.PostAsJsonAsync("/api/commands/TestCreateOrderCommand", command);
+            status = (int)httpResponse.StatusCode;
+        });
+
+        // Assert
+        status.ShouldBe(expectedStatus);
+    }
+
+    [Fact]
+    public async Task QueryFailureExpectation_CodeWithoutCategory_AnswersInternalServerError()
+    {
+        // Arrange: an old-style code prefix no longer decides the status.
+        var query = new TestGetOrderByIdQuery(Guid.NewGuid());
+        var error = EncinaErrors.Create("encina.validation.invalid", "A code with no category.");
+        _sut.WithQueryFailureExpectation<TestGetOrderByIdQuery, TestOrderDto>(query, error);
+        var status = 0;
+
+        // Act
+        await _sut.VerifyAsync(async uri =>
+        {
+            using var client = new HttpClient { BaseAddress = uri };
+            var httpResponse = await client.PostAsJsonAsync("/api/queries/TestGetOrderByIdQuery", query);
+            status = (int)httpResponse.StatusCode;
+        });
+
+        // Assert
+        status.ShouldBe(500);
+    }
+
     [Fact]
     public async Task VerifyAsync_WithTestAction_ExecutesActionAndSetsMockServerUri()
     {

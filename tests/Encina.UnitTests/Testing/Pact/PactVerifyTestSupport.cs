@@ -67,8 +67,13 @@ internal sealed class PactVerifyGetOrderHandler : IRequestHandler<PactVerifyGetO
         Either<EncinaError, PactVerifyOrderDto> result = request.Scenario switch
         {
             "ok" => new PactVerifyOrderDto { Id = request.OrderId, CustomerName = "Ada" },
-            "validation" => EncinaErrors.Create("encina.validation.invalid", "The order id is invalid."),
+            "validation" => EncinaErrors.Create("orders.invalid_id", ErrorCategory.Validation, "The order id is invalid."),
             "forbidden" => EncinaErrors.Forbidden(),
+            "notfound" => EncinaErrors.Create("orders.lookup_failed", ErrorCategory.NotFound, "The order was not found."),
+            "conflict" => EncinaErrors.Create("orders.stale", ErrorCategory.Conflict, "The order changed."),
+            "ratelimited" => EncinaErrors.Create("orders.throttled", ErrorCategory.RateLimited, "Too many requests."),
+            "timeout" => EncinaErrors.Create("orders.slow", ErrorCategory.Timeout, "The lookup timed out."),
+            "legacyvalidation" => EncinaErrors.Create("encina.validation.invalid", "A code with no category."),
             _ => EncinaErrors.Create("custom.failure", "Something unmapped failed.")
         };
 
@@ -99,7 +104,7 @@ internal sealed class PactVerifyOrderPlacedHandler : INotificationHandler<PactVe
         CancellationToken cancellationToken)
     {
         Either<EncinaError, Unit> result = string.Equals(notification.CustomerName, "reject", StringComparison.Ordinal)
-            ? EncinaErrors.Create("encina.validation.rejected", "The customer was rejected.")
+            ? EncinaErrors.Create("customers.rejected", ErrorCategory.Validation, "The customer was rejected.")
             : Unit.Default;
 
         return Task.FromResult(result);
