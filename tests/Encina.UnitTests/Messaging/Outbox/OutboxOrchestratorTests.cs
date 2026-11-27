@@ -513,7 +513,7 @@ public sealed class OutboxOrchestratorTests
     }
 
     [Fact]
-    public async Task RequeueExhaustedAsync_Success_LogsWithEventId2959()
+    public async Task RequeueExhaustedAsync_Success_LogsWithEventId11709()
     {
         // Arrange
         var fixture = CreateTestFixture();

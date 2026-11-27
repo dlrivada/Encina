@@ -190,7 +190,7 @@ public sealed class DbTransactionAccessorTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Owner_RollbackThrows_LogsEventId2970WithoutTheMessageAndDoesNotThrow()
+    public async Task Owner_RollbackThrows_LogsEventId11720WithoutTheMessageAndDoesNotThrow()
     {
         var logger = new CapturingLogger();
         await using var accessor = new DbTransactionAccessor(_connection, logger);

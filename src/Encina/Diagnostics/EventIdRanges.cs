@@ -90,7 +90,7 @@ public static class EventIdRanges
 
     /// <summary>
     /// Encina.Messaging — delayed-retry processor and recoverability pipeline diagnostics added after
-    /// the original recoverability ids (2845-2871, inside <see cref="Messaging"/>).
+    /// the original recoverability ids (now 11595-11621, inside <see cref="Messaging"/>).
     /// </summary>
     public static readonly (int Min, int Max) MessagingRecoverability = (12050, 12099); // moved from 5450-5499 in #4007 CM-4
 
