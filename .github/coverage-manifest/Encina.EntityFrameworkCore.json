@@ -939,7 +939,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 93,
+        "guard": 27
+      },
+      "justifications": {
+        "unit": "Unit tests drive the provider failure and the factory failure paths and assert the Internal category (measured 93.1%); the two uncovered lines are the relational success path that needs a real provider.",
+        "guard": "Guard tests cover the constructor and ExecuteSqlAsync argument checks (measured 27.6%)."
+      }
     },
     "Sharding/Migrations/EfCoreMigrationHistoryStore.cs": {
       "defaultTests": [
@@ -947,7 +955,15 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 93,
+        "guard": 12
+      },
+      "justifications": {
+        "unit": "Unit tests run all five history store methods against an in-memory context so each catch block is reached and its category asserted (measured 93.0%); the success SQL needs a relational provider.",
+        "guard": "Guard tests cover the constructor and the shard id, script and scripts argument checks (measured 12.6%)."
+      }
     },
     "Sharding/Migrations/EfCoreMigrationOptions.cs": {
       "defaultTests": [
@@ -962,7 +978,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 94,
+        "guard": 11
+      },
+      "justifications": {
+        "unit": "Unit tests compare a relational Sqlite model and drive the non-relational failure path asserting the Internal category (measured 94.2%).",
+        "guard": "Guard tests cover the constructor and CompareAsync null checks (measured 11.6%)."
+      }
     },
     "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -977,7 +1001,17 @@
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "unit": 100,
+        "guard": 7,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests cover upsert and read-all success and failure paths against an in-memory context, asserting the Internal category (measured 100%).",
+        "guard": "Guard tests cover the constructor and UpsertAsync null checks (measured 7.8%).",
+        "integration": "The EF Core reference table integration tests are only justification files today, so the measured 0% is a known gap; the zero target is explicit until real-database tests exist."
+      }
     },
     "Sharding/ReferenceTables/ReferenceTableStoreFactoryEF.cs": {
       "defaultTests": [
@@ -1001,7 +1035,15 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 97,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests drive every replica selection path, including the NoReplicasConfigured (Internal) and AllReplicasUnhealthy (Unavailable) errors, with real topologies and a substituted health tracker (measured 97.6%).",
+        "guard": "Guard tests cover the constructor null checks (measured 10.4%); the remaining lines are the read/write context creation covered by unit tests."
+      }
     },
     "Sharding/ShardingServiceCollectionExtensions.cs": {
       "defaultTests": [
