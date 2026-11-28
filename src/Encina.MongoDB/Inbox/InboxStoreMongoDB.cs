@@ -122,7 +122,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
         return marked.Bind(found => found
             ? Prelude.Right<EncinaError, Unit>(Unit.Default)
             : Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(
-                MarkProcessedNotFoundCode,
+                MarkProcessedNotFoundCode, ErrorCategory.Internal,
                 "The inbox message to mark as processed was not found.")));
     }
 
@@ -141,7 +141,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
     }
 
     private static Either<EncinaError, Unit> NotFound(string code)
-        => Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(code, "The inbox message was not found."));
+        => Prelude.Left<EncinaError, Unit>(EncinaErrors.Create(code, ErrorCategory.Internal, "The inbox message was not found."));
 
     /// <inheritdoc />
     public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(

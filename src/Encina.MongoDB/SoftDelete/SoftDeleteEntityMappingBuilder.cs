@@ -123,14 +123,14 @@ public sealed class SoftDeleteEntityMappingBuilder<TEntity, TId>
         if (_idSelector is null)
         {
             return EncinaErrors.Create(
-                EntityMappingErrorCodes.MissingPrimaryKey,
+                EntityMappingErrorCodes.MissingPrimaryKey, ErrorCategory.Internal,
                 $"ID property must be configured. Call HasId() before Build().");
         }
 
         if (_isDeletedSelector is null)
         {
             return EncinaErrors.Create(
-                EntityMappingErrorCodes.MissingColumnMappings,
+                EntityMappingErrorCodes.MissingColumnMappings, ErrorCategory.Internal,
                 $"IsDeleted property must be configured. Call HasSoftDelete() before Build().");
         }
 

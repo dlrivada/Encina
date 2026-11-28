@@ -701,7 +701,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 58,
+        "guard": 27
+      },
+      "justifications": {
+        "unit": "Unit tests run the real executor with a malformed command through the catch block and cover the argument checks; the driver RunCommand path needs a live server.",
+        "guard": "Guard tests reach the constructor and ExecuteSqlAsync argument checks only."
+      }
     },
     "Sharding/Migrations/MongoMigrationHistoryStore.cs": {
       "defaultTests": [
@@ -709,7 +717,15 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 38,
+        "guard": 12
+      },
+      "justifications": {
+        "unit": "Unit tests drive each of the five operations through a throwing collection factory to cover the error paths; the cursor and index logic needs a live server.",
+        "guard": "Guard tests reach the constructor and the argument checks of the five operations only."
+      }
     },
     "Sharding/Migrations/MongoSchemaIntrospector.cs": {
       "defaultTests": [
@@ -717,7 +733,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 26,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests cover the comparison error path through a throwing collection factory; the collection listing and index mapping need a live server.",
+        "guard": "Guard tests reach the constructor and CompareAsync argument checks only."
+      }
     },
     "Sharding/MongoDbShardingOptions.cs": {
       "defaultTests": [
@@ -739,7 +763,15 @@
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "unit": 78,
+        "guard": 2
+      },
+      "justifications": {
+        "unit": "Unit tests cover upsert success against a mocked collection, the empty list and both error paths; the cursor read of GetAllAsync needs a live server.",
+        "guard": "Only the constructor and UpsertAsync null checks are guard-reachable."
+      }
     },
     "Sharding/ShardedMongoCollectionFactory.cs": {
       "defaultTests": [
@@ -809,7 +841,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 91,
+        "guard": 76
+      },
+      "justifications": {
+        "unit": "Unit tests build the mapping unconfigured, partly and fully configured, covering every validation branch.",
+        "guard": "Guard tests reach the builder's argument checks across its fluent methods."
+      }
     },
     "SoftDelete/SoftDeleteSpecificationFilterBuilder.cs": {
       "defaultTests": [
@@ -909,7 +949,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 91,
+        "guard": 7
+      },
+      "justifications": {
+        "unit": "Unit tests build the mapping unconfigured and fully configured; the MissingColumnMappings branch is unreachable because HasId always adds a mapping.",
+        "guard": "Guard tests reach only the argument checks of a few fluent methods."
+      }
     },
     "Transactions/IMongoSessionAccessor.cs": {
       "defaultTests": [],

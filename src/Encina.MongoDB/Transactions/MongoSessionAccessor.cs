@@ -143,7 +143,7 @@ public sealed class MongoSessionAccessor : IMongoSessionAccessor, IAsyncDisposab
 
     internal static EncinaError StandaloneNotSupported()
         => EncinaErrors.Create(
-            TransactionErrors.NotSupportedCode,
+            TransactionErrors.NotSupportedCode, ErrorCategory.Internal,
             "MongoDB transactions require a replica set or a sharded cluster; the server is a standalone deployment, so " +
             "the request cannot write its outbox messages atomically. Run a single-node replica set for development.");
 
