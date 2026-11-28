@@ -163,7 +163,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveWriteTenantScope("SubmitRequest", tenantId, out var effectiveTenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -204,7 +204,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("VerifyIdentity", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -250,7 +250,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("StartProcessing", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -295,7 +295,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("CompleteRequest", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -386,7 +386,7 @@ internal sealed class DefaultDSRService : IDSRService
     {
         if (!TryResolveTenantScope("DenyRequest", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -445,7 +445,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("ExtendDeadline", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -490,7 +490,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("ExpireRequest", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -691,7 +691,7 @@ internal sealed class DefaultDSRService : IDSRService
         if (!TryResolveWriteTenantScope("HandleRestriction", null, out var tenantId, out var tenantError))
         {
             RecordFailure(activity, stopwatch, rightType, DSRErrors.TenantRequiredCode);
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -808,7 +808,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("GetRequest", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         var cacheKey = RequestCacheKey(requestId, tenantId);
@@ -857,7 +857,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("GetRequestsBySubject", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -881,7 +881,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("GetPendingRequests", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -910,7 +910,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("GetOverdueRequests", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -951,7 +951,7 @@ internal sealed class DefaultDSRService : IDSRService
 
         if (!TryResolveTenantScope("HasActiveRestriction", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         // The cache key is scoped by tenant so one tenant's restriction answer is never served to
