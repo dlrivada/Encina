@@ -73,12 +73,12 @@
       "reason": "Static error factory methods",
       "targets": {
         "unit": 100,
-        "guard": 0,
+        "guard": 100,
         "property": 0
       },
       "justifications": {
         "unit": "Every factory method and its error code are asserted by the error unit tests (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "guard": "BreakTheGlassValueTypesGuardTests Errors_* call every factory, including ValidationFailed with a keyword and an empty reason and StoreFailed with and without an exception, and assert the error codes; no argument is rejected with a throw (measured 100%).",
         "property": "No invariant beyond the gate expiry property; behaviour is covered by example-based unit tests (measured 0%)."
       }
     },
@@ -156,13 +156,13 @@
       "reason": "Static counters for break-the-glass accesses and sweeper expiries",
       "targets": {
         "unit": 100,
-        "guard": 0,
+        "guard": 100,
         "contract": 0,
         "property": 95
       },
       "justifications": {
         "unit": "BreakTheGlassAccessGateTests and BreakTheGlassExpiryServiceTests drive every counter this class declares (measured 100%).",
-        "guard": "The class holds static counters with no parameters to guard (measured 0%).",
+        "guard": "BreakTheGlassValueTypesGuardTests Diagnostics_* call RecordAccess and RecordStoreFailure and read the emitted tags through a MeterListener; neither method rejects an argument with a throw (measured 100%).",
         "contract": "The static counters are not part of a contract (measured 0%).",
         "property": "The sweeper property and the gate properties (access path) drive the counters for generated elevations, so the expiry and access counters are exercised on every generated case (measured 100%)."
       }
@@ -249,12 +249,12 @@
       "reason": "Audit writer for elevation events",
       "targets": {
         "unit": 100,
-        "guard": 0,
+        "guard": 100,
         "property": 90
       },
       "justifications": {
         "unit": "Every audit write for open and review events is asserted through a fake audit store (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "guard": "BreakTheGlassValueTypesGuardTests Audit_* build entries with and without a user and tenant and run WriteAsync against a store that records, returns Left, throws and cancels; no argument is rejected with a throw (measured 100%).",
         "property": "Covered incidentally by BreakTheGlassGateProperties, which builds the gate with an in-memory audit store; no property inspects the audit metadata (measured 90%)."
       }
     },
@@ -268,12 +268,12 @@
       "reason": "Eligibility rules for break-the-glass requests",
       "targets": {
         "unit": 100,
-        "guard": 0,
+        "guard": 80,
         "property": 75
       },
       "justifications": {
         "unit": "The eligibility rules, the subject-id shapes and their refusal branches are driven by the unit tests (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "guard": "BreakTheGlassValueTypesGuardTests Eligibility_* read the info of a marked and an unmarked request type and build the info record; the misconfiguration throws of the type initializer are asserted by the unit tests (measured 80.95%).",
         "property": "Covered incidentally by BreakTheGlassGateProperties, whose request type carries the attribute so the gate builds the eligibility accessor on every case; no property targets the other branches (measured 76.19%)."
       }
     },
@@ -306,13 +306,13 @@
       "reason": "Subject-id conversion rules copied from the data subject rights extractor",
       "targets": {
         "unit": 100,
-        "guard": 0,
+        "guard": 65,
         "property": 15,
         "contract": 0
       },
       "justifications": {
         "unit": "BreakTheGlassSubjectIdConversionTests run the string, blank, Guid, integer, record, record struct, wrapper, IFormattable and unsupported shapes (measured 100%).",
-        "guard": "The helper validates no arguments; unsupported types throw InvalidOperationException, asserted by the unit tests (measured 0%).",
+        "guard": "BreakTheGlassValueTypesGuardTests SubjectIdConversion_* convert null, string, Guid and integer values and reject an unsupported type; the strongly typed id and wrapper shapes stay with the unit tests (measured 69.49%).",
         "property": "Covered incidentally by BreakTheGlassGateProperties, whose string subject id runs the string branch of the conversion; no property targets the other shapes (measured 15.25%).",
         "contract": "An internal static helper with no public contract (measured 0%)."
       }
@@ -349,12 +349,12 @@
       "reason": "Elevation request data record",
       "targets": {
         "unit": 100,
-        "guard": 0,
+        "guard": 100,
         "property": 0
       },
       "justifications": {
         "unit": "Record members and with-expressions are asserted by the unit tests (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "guard": "BreakTheGlassValueTypesGuardTests Request_* construct the record and assert ToString omits the subject id and the justification; the record rejects no argument with a throw (measured 100%).",
         "property": "No invariant beyond the gate expiry property; behaviour is covered by example-based unit tests (measured 0%)."
       }
     },
@@ -396,11 +396,11 @@
       "reason": "Notification record",
       "targets": {
         "unit": 100,
-        "guard": 0
+        "guard": 100
       },
       "justifications": {
         "unit": "The notification record members are asserted when an elevation opens (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%)."
+        "guard": "BreakTheGlassValueTypesGuardTests OpenedNotification_* construct the record with and without a tenant and assert every member; the record rejects no argument with a throw (measured 100%)."
       }
     },
     "Notifications/BreakTheGlassReviewedNotification.cs": {
@@ -412,11 +412,11 @@
       "reason": "Notification record",
       "targets": {
         "unit": 65,
-        "guard": 0
+        "guard": 100
       },
       "justifications": {
         "unit": "The review notification members are asserted by the review flow tests; the uncovered members are only read by subscribers (measured 65%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%)."
+        "guard": "BreakTheGlassValueTypesGuardTests ReviewedNotification_* construct the record with and without a tenant and assert every member; the record rejects no argument with a throw (measured 100%)."
       }
     },
     "Services/BreakTheGlassExpiryService.cs": {
