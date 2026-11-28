@@ -222,10 +222,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Access elevation model with pure decision logic",
-      "targets": { "unit": 100, "guard": 0, "property": 100 },
+      "targets": { "unit": 100, "guard": 100, "property": 100 },
       "justifications": {
         "unit": "The elevation model members are asserted by the unit tests (measured 100%).",
-        "guard": "No guard to test: the sealed record's positional constructor takes a string scope but checks no argument, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests construct the record and a with-copy and show that its positional constructor checks no argument, so an empty scope is stored unchanged (measured 100%).",
         "property": "Covered incidentally by the FsCheck gate property BreakTheGlassGateProperties, which grants only while the elevation is Active and before ExpiresAtUtc; no generated elevations are checked here (measured 100%)."
       }
     },
@@ -237,10 +237,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Denial reasons of the access elevation gate",
-      "targets": { "unit": 100, "guard": 0, "property": 100 },
+      "targets": { "unit": 100, "guard": 100, "property": 100 },
       "justifications": {
         "unit": "Every denial reason and its code are asserted by the unit tests (measured 100%).",
-        "guard": "No guard to test: IsOverridable takes only the EncinaError struct, a value type with no null check; the overridable codes are asserted by the unit tests.",
+        "guard": "Guard tests run IsOverridable for an overridable code, an ABAC literal, an unrelated code and an error without a code; the struct parameter has no null check (measured 100%).",
         "property": "Covered incidentally by the FsCheck gate property BreakTheGlassGateProperties, which uses a fixed Forbidden denial; no generated denials are checked here (measured 100%)."
       }
     },
@@ -257,10 +257,10 @@
       ],
       "defaultRule": "*Gate.cs",
       "reason": "No-op gate used when no elevation is configured",
-      "targets": { "unit": 100, "guard": 0, "contract": 100, "property": 0 },
+      "targets": { "unit": 100, "guard": 100, "contract": 100, "property": 0 },
       "justifications": {
         "unit": "The no-op gate returns its fixed decision and is asserted by the unit tests (measured 100%).",
-        "guard": "No guard to test: the internal no-op gate's TryElevateAsync takes reference-type parameters but checks none of them and always returns the same decision.",
+        "guard": "Guard tests call TryElevateAsync with a null request and context and show that the no-op gate checks nothing and returns Right(None) (measured 100%).",
         "contract": "The contract tests run the no-op gate through IAccessElevationGate (measured 100%).",
         "property": "No FsCheck property covers this file; it is covered by example-based unit tests (measured 0%)."
       }
@@ -272,10 +272,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 90, "guard": 0 },
+      "targets": { "unit": 90, "guard": 70 },
       "justifications": {
         "unit": "Security-critical explicit-context rule order and setter rule; unit tests drive every rule (measured 94%).",
-        "guard": "Internal static helper with no public argument guards; the null checks live in RequestContext.CopyOf and the dispatcher, so no guard test reaches this file."
+        "guard": "Guard tests drive Resolve with a null time provider, no explicit context and an anonymous explicit context; the identity refusal and scope paths are left to the unit tests (measured 70.97%)."
       }
     },
     "Core/ChainFacts.cs": {
@@ -383,10 +383,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 100, "guard": 0, "contract": 76 },
+      "targets": { "unit": 100, "guard": 60, "contract": 76 },
       "justifications": {
         "unit": "Stream dispatch, the missing-handler path and the staged stream behaviors are exercised by StagedPipelineExecutionTests (measured 100%).",
-        "guard": "No guard to test: the internal static ExecuteAsync takes reference-type parameters (the Encina instance and the request) but checks none of them, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests stream an unhandled request and a null request through IEncina.Stream; the handler pipeline path is left to the unit and contract tests (measured 63.41%).",
         "contract": "Contract tests stream a request through the handler wrapper (measured 76%); the missing-handler path is covered by unit tests."
       }
     },
@@ -620,11 +620,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "HTTP column of the error category contract (ADR-062)",
-      "targets": { "unit": 100, "property": 90, "guard": 0, "contract": 0 },
+      "targets": { "unit": 100, "property": 90, "guard": 90, "contract": 0 },
       "justifications": {
         "unit": "Every category, every reason phrase, the Retry-After rounding, zero, negative and non-TimeSpan cases and the challenge fallbacks are unit-tested (measured 100% on 2026-11-13, #3683).",
         "property": "Properties cover the 400-599 range for every category, the Retry-After gate and rounding, and the challenge fallback (measured 96.1% on 2026-11-13, #3683).",
-        "guard": "The only parameters are an enum, an int and the EncinaError struct, which have no null or range checks to guard; an undefined enum value is covered by unit tests.",
+        "guard": "Guard tests pin the undefined-category, unknown-status, missing and malformed header metadata fallbacks; the parameters are an enum, an int and a struct with no null check, and the full category and status table stays with the unit and property tests (measured 94.92%).",
         "contract": "A static class with no interface or abstract type to keep; its statuses are pinned by the unit and property tests."
       }
     },
@@ -1267,10 +1267,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 95, "guard": 0 },
+      "targets": { "unit": 95, "guard": 100 },
       "justifications": {
         "unit": "Every notification guard branch is driven by the unit tests (measured 100%).",
-        "guard": "The guard tests do not reach this internal static guard, it is exercised through Publish in the unit tests (measured 0%)."
+        "guard": "Guard tests call TryValidateHandleMethod with a valid method, a wrong parameter count and a wrong return type (measured 100%)."
       }
     },
     "Pipeline/EncinaRequestGuards.cs": {
@@ -1338,10 +1338,10 @@
       ],
       "defaultRule": "*Attribute.cs",
       "reason": "Attribute value holder with pipeline stage metadata",
-      "targets": { "unit": 95, "guard": 0, "contract": 0 },
+      "targets": { "unit": 95, "guard": 100, "contract": 0 },
       "justifications": {
         "unit": "The constructor and both properties are executed by PipelineStageContractTests (measured 100%).",
-        "guard": "No guard to test: the only constructor parameter is the PipelineStage enum, a value type with no null check.",
+        "guard": "Guard tests construct the attribute with an undefined stage and show its default order; the enum parameter has no null check (measured 100%).",
         "contract": "No contract to test: the sealed attribute is a concrete class that implements no Encina-owned interface or abstract class; its values are asserted by unit tests."
       }
     },
@@ -1351,10 +1351,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Record describing one pipeline step",
-      "targets": { "unit": 95, "guard": 0, "contract": 0 },
+      "targets": { "unit": 95, "guard": 65, "contract": 0 },
       "justifications": {
         "unit": "The record constructor, equality and with-expressions are executed by PipelineStageContractTests (measured 100%).",
-        "guard": "No guard to test: the sealed record's constructor takes a Type but checks no argument, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests construct the record and show its value equality; the positional constructor checks no argument, and the two enums of the file are not executable (measured 66.67%).",
         "contract": "No contract to test: the sealed record is a concrete type that implements no Encina-owned interface or abstract class; its shape is asserted by unit tests."
       }
     },
@@ -1380,10 +1380,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Step identity contract and attribute lookup helper",
-      "targets": { "unit": 100, "guard": 0, "contract": 100 },
+      "targets": { "unit": 100, "guard": 100, "contract": 100 },
       "justifications": {
         "unit": "The attribute lookup helper is executed by every resolver test (measured 100%).",
-        "guard": "The only member is a lookup helper whose parameter is a Type that callers never pass as null; there is nothing to guard.",
+        "guard": "Guard tests call the attribute lookup with a null type, a staged type and an unstaged type (measured 100%).",
         "contract": "Contract tests dispatch through the builders, which call the lookup helper (measured 100%)."
       }
     },
@@ -1472,10 +1472,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Resolved step instance offered to the order resolver",
-      "targets": { "unit": 95, "guard": 0, "contract": 85 },
+      "targets": { "unit": 95, "guard": 100, "contract": 85 },
       "justifications": {
         "unit": "Candidate creation for plain, module and processor steps is executed by PipelineOrderResolverTests (measured 100%).",
-        "guard": "No guard to test: the internal For factory takes a reference-type behavior but checks no argument, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests create candidates for a plain object and for a self-describing step (measured 100%).",
         "contract": "Contract tests dispatch through the builders, which create a candidate per step (measured 100%)."
       }
     },
@@ -1487,10 +1487,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Error processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 100 },
+      "targets": { "unit": 100, "guard": 75, "contract": 100 },
       "justifications": {
         "unit": "Observing only a Left, returning the original error and a cancelled observer are exercised by StagedPipelineExecutionTests (measured 100%).",
-        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests run the step for a Right, a Left and a cancelled observer; the constructor checks no processor, and the branches the guard run does not reach stay covered by the unit and contract tests (measured 76.47%).",
         "contract": "Contract tests run the step through IPipelineBehavior: a Right never observes, a Left is observed and returned unchanged, a cancelled observer does not replace the error, and the identity is reported (measured 100%)."
       }
     },
@@ -1502,10 +1502,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Post-commit processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 100 },
+      "targets": { "unit": 100, "guard": 80, "contract": 100 },
       "justifications": {
         "unit": "Running after the commit, never after a rollback, a Left failing the request and the cancellation mapping are exercised by StagedPipelineExecutionTests (measured 100%).",
-        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests run the step for success, an inner Left, a processor Left and a cancelled processor; the constructor checks no processor (measured 82.61%).",
         "contract": "Contract tests run the step through IPipelineBehavior: a Right keeps the response, a Left fails the request, a Left from the next step skips the processor, a cancelled processor maps to its error code, and the identity is reported (measured 100%)."
       }
     },
@@ -1517,10 +1517,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Post-processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 100 },
+      "targets": { "unit": 100, "guard": 95, "contract": 100 },
       "justifications": {
         "unit": "Run on Right only, Left failing the request and the cancellation mapping are exercised by ProcessorSemanticsTests and StagedPipelineExecutionTests (measured 100%).",
-        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests run the step for success, an inner Left, a processor Left and a cancelled processor; the constructor checks no processor (measured 95.65%).",
         "contract": "Contract tests run the step through IPipelineBehavior: a Right keeps the response, a Left fails the request, a Left from the next step skips the processor, a cancelled processor maps to its error code, and the identity is reported (measured 100%)."
       }
     },
@@ -1532,10 +1532,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Pre-processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 100 },
+      "targets": { "unit": 100, "guard": 100, "contract": 100 },
       "justifications": {
         "unit": "Abort on Left, continue on Right and the cancellation mapping are exercised by ProcessorSemanticsTests and StagedPipelineExecutionTests (measured 100%).",
-        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "guard": "Guard tests run the step for success, a processor Left and a cancelled processor; the constructor checks no processor (measured 100%).",
         "contract": "Contract tests run the step through IPipelineBehavior: a Right continues, a Left aborts, a cancelled processor maps to its error code, and the identity is reported (measured 100%)."
       }
     },
@@ -1563,10 +1563,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Error classifier contract and DefaultErrorClassifier, moved from Encina.Messaging in #1223",
-      "targets": { "unit": 95, "guard": 0, "contract": 80, "property": 75, "integration": 80 },
+      "targets": { "unit": 95, "guard": 90, "contract": 80, "property": 75, "integration": 80 },
       "justifications": {
         "unit": "Classifier branches covered by DefaultErrorClassifierTests and OutboundRulesTests.",
-        "guard": "Classify takes a struct and a nullable exception: there is no null guard to test.",
+        "guard": "Guard tests call Classify with a null exception, an exception argument, pool exhaustion, a declared transience and message patterns; the struct and the nullable exception have no null check, and the remaining exception and HTTP-status branches stay with the unit and property tests (measured 92.26%).",
         "contract": "ErrorClassifierContractTests run the real DefaultErrorClassifier.",
         "property": "Classification invariants run over generated errors.",
         "integration": "Pool exhaustion is classified against the real SqlClient, Npgsql and MySqlConnector drivers."
@@ -2235,10 +2235,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 100, "guard": 0 },
+      "targets": { "unit": 100, "guard": 100 },
       "justifications": {
         "unit": "Unit tests execute the sequential migration strategy in full (measured 100%).",
-        "guard": "The strategy validates no arguments, so guard tests cannot reach any executable line; the unit tests execute it fully."
+        "guard": "Guard tests run the strategy with no shards, a failing shard, a timeout and a cancelled caller token; it validates no argument itself (measured 100%)."
       }
     },
     "Sharding/Migrations/TableDiff.cs": {
