@@ -153,7 +153,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveWriteTenantScope("GrantConsent", tenantId, out var effectiveTenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -400,7 +400,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveTenantScope("WithdrawConsent", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -458,7 +458,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveTenantScope("RenewConsent", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -519,7 +519,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveTenantScope("ProvideReconsent", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -639,7 +639,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveTenantScope("GetConsent", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         var cacheKey = $"consent:{consentId}";
@@ -689,7 +689,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveTenantScope("GetConsentBySubjectAndPurpose", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         // The cache key is scoped by tenant so a cached read model from one tenant is never
@@ -741,7 +741,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveTenantScope("GetAllConsents", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
@@ -767,7 +767,7 @@ internal sealed class DefaultConsentService : IConsentService
 
         if (!TryResolveTenantScope("HasValidConsent", out var tenantId, out var tenantError))
         {
-            return tenantError!.Value;
+            return (EncinaError)tenantError!;
         }
 
         try
